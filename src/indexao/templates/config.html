@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=1.0.1">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-database"></i>
+                </div>
+                <h1>Indexao</h1>
+            </div>
+            <nav class="header-nav">
+                <a href="/">
+                    <i class="fas fa-upload"></i>
+                    Upload
+                </a>
+                <a href="/config" class="active">
+                    <i class="fas fa-cog"></i>
+                    Configuration
+                </a>
+                <a href="/api/config" target="_blank">
+                    <i class="fas fa-code"></i>
+                    API JSON
+                </a>
+            </nav>
+        </div>
+    </header>
+    <div class="container">
+        <!-- Logging Section -->
+        <div class="card">
+            <h2>
+                <i class="fas fa-file-alt"></i>
+                Logging
+            </h2>
+                <div class="config-row">
+                    <div class="config-key">Level</div>
+                    <div class="config-value">
+                        <span class="badge badge-info">{{ config.logging.level }}</span>
+                    </div>
+                <div class="config-row">
+                    <div class="config-key">Level</div>
+                    <div class="config-value">
+                        <span class="badge badge-info">{{ config.logging.level }}</span>
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Console Enabled</div>
+                    <div class="config-value">
+                        <span class="badge badge-{{ 'true' if config.logging.console_enabled else 'false' }}">
+                            <i class="fas fa-{{ 'check' if config.logging.console_enabled else 'times' }}-circle"></i>
+                            {{ config.logging.console_enabled }}
+                        </span>
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">File Enabled</div>
+                    <div class="config-value">
+                        <span class="badge badge-{{ 'true' if config.logging.file_enabled else 'false' }}">
+                            <i class="fas fa-{{ 'check' if config.logging.file_enabled else 'times' }}-circle"></i>
+                            {{ config.logging.file_enabled }}
+                        </span>
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Log Directory</div>
+                    <div class="config-value">
+                        <i class="fas fa-folder"></i>
+                        {{ config.logging.log_dir }}
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Slow Threshold</div>
+                    <div class="config-value">{{ config.logging.slow_threshold_ms }}ms</div>
+                </div>
+            </div>
+            
+            <!-- Directories -->
+            <div class="card">
+                <h2>
+                    <i class="fas fa-folder-open"></i>
+                    Directories
+                </h2>
+                <div class="config-row">
+                    <div class="config-key">Input Directory</div>
+                    <div class="config-value">
+                        <i class="fas fa-inbox"></i>
+                        {{ config.input_dir }}
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Output Directory</div>
+                    <div class="config-value">
+                        <i class="fas fa-folder"></i>
+                        {{ config.output_dir }}
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Temp Directory</div>
+                    <div class="config-value">
+                        <i class="fas fa-clock"></i>
+                        {{ config.temp_dir }}
+                    </div>
+                </div>
+                
+                <div class="subsection">
+                    <h3>Path Adapters</h3>
+                    <div class="config-row">
+                        <div class="config-key">Cache Enabled</div>
+                        <div class="config-value">
+                            <span class="badge badge-{{ 'true' if config.paths.cache_enabled else 'false' }}">
+                                <i class="fas fa-{{ 'check' if config.paths.cache_enabled else 'times' }}-circle"></i>
+                                {{ config.paths.cache_enabled }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="config-row">
+                        <div class="config-key">Cache TTL</div>
+                        <div class="config-value">{{ config.paths.cache_ttl_seconds }}s</div>
+                    </div>
+                    <div class="config-row">
+                        <div class="config-key">Retry Enabled</div>
+                        <div class="config-value">
+                            <span class="badge badge-{{ 'true' if config.paths.retry_enabled else 'false' }}">
+                                {{ config.paths.retry_enabled }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="config-row">
+                        <div class="config-key">Retry Attempts</div>
+                        <div class="config-value">{{ config.paths.retry_attempts }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- OCR Plugin -->
+            <div class="card">
+                <h2>
+                    <i class="fas fa-eye"></i>
+                    OCR Plugin
+                </h2>
+                <div class="config-row">
+                    <div class="config-key">Engine</div>
+                    <div class="config-value">
+                        <span class="badge badge-info">{{ config.plugins.ocr.engine }}</span>
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Languages</div>
+                    <div class="config-value">
+                        {% for lang in config.plugins.ocr.languages %}
+                        <span class="badge badge-info">{{ lang }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Confidence Threshold</div>
+                    <div class="config-value">{{ config.plugins.ocr.confidence_threshold }}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Timeout</div>
+                    <div class="config-value">{{ config.plugins.ocr.timeout_seconds }}s</div>
+                </div>
+            </div>
+            
+            <!-- Translator Plugin -->
+            <div class="card">
+                <h2>
+                    <i class="fas fa-language"></i>
+                    Translator Plugin
+                </h2>
+                <div class="config-row">
+                    <div class="config-key">Engine</div>
+                    <div class="config-value">
+                        <span class="badge badge-info">{{ config.plugins.translator.engine }}</span>
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Source Language</div>
+                    <div class="config-value">{{ config.plugins.translator.source_language }}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Target Languages</div>
+                    <div class="config-value">
+                        {% for lang in config.plugins.translator.target_languages %}
+                        <span class="badge badge-info">{{ lang }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Confidence Threshold</div>
+                    <div class="config-value">{{ config.plugins.translator.confidence_threshold }}</div>
+                </div>
+            </div>
+            
+            <!-- Search Plugin -->
+            <div class="card">
+                <h2>
+                    <i class="fas fa-search"></i>
+                    Search Plugin
+                </h2>
+                <div class="config-row">
+                    <div class="config-key">Engine</div>
+                    <div class="config-value">
+                        <span class="badge badge-info">{{ config.plugins.search.engine }}</span>
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Host</div>
+                    <div class="config-value">
+                        <i class="fas fa-server"></i>
+                        {{ config.plugins.search.host }}
+                    </div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Port</div>
+                    <div class="config-value">{{ config.plugins.search.port }}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">Index Name</div>
+                    <div class="config-value">{{ config.plugins.search.index_name }}</div>
+                </div>
+                <div class="config-row">
+                    <div class="config-key">API Key</div>
+                    <div class="config-value">
+                        <i class="fas fa-key"></i>
+                        {% if config.plugins.search.api_key %}
+                        <span class="badge badge-info">***{{ config.plugins.search.api_key[-4:] }}</span>
+                        {% else %}
+                        <span class="badge badge-false">Not configured</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Indexao v0.1.0 - Sprint 0 Configuration Viewer</p>
+        </footer>
+    </div>
+</body>
+</html>

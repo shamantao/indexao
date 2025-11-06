@@ -1,13 +1,74 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+.venv/
+env/
+ENV/
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDEs
+.idea/
+.vscode/
+*.code-workspace
+
+# Rust
+target/
+Cargo.lock
+*.rs.bk
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Configuration (keep example, ignore actual)
+config.toml
+!config.example.toml
+
+# mkdoc development tracking (not for Git)
+mkdoc/
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
 build/
 develop-eggs/
 dist/
@@ -145,6 +206,7 @@ venv.bak/
 
 # mkdocs documentation
 /site
+/mkdoc
 
 # mypy
 .mypy_cache/

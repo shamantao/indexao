@@ -1,0 +1,221 @@
+# Indexao Configuration Example
+# Copy this file to config.toml and customize for your setup
+
+[paths]
+# Where indexed data is stored (database, cache, logs)
+index_root = "../index"
+
+# Where plugins and models are stored (Chandra-OCR, Argostranslate models, etc.)
+sources_root = "../_sources"
+
+# Where user volumes and test data are located
+volumes_root = "../_Volumes"
+
+# Path adapter configuration
+[paths.adapters]
+# Enable path resolution cache for performance
+cache_enabled = true
+
+# Timeout for I/O operations (seconds)
+timeout = 30
+
+# Number of retries for transient errors
+retry_count = 3
+
+# Delay between retries (seconds, exponential backoff)
+retry_delay = 0.1
+
+# Supported schemes (future: smb, s3)
+# enabled_schemes = ["file", "smb", "s3"]
+
+[languages]
+# Enabled languages for multilingual search and translation
+enabled = ["fr", "en", "zh-TW"]
+
+# Default language for UI and logs
+default = "en"
+
+# Auto-detect document language (if false, use default)
+auto_detect = true
+
+[plugins.ocr]
+# Default OCR engine: tesseract, chandra, google_vision, mock
+default = "tesseract"
+
+# Tesseract configuration
+[plugins.ocr.tesseract]
+enabled = true
+# Languages: eng (English), fra (French), chi_tra (Chinese Traditional)
+lang = "eng+fra+chi_tra"
+# Path to tesseract binary (auto-detected if not specified)
+# path = "/usr/bin/tesseract"
+# Confidence threshold (0.0 - 1.0)
+confidence_threshold = 0.7
+
+# Chandra-OCR configuration (VLM-based OCR)
+[plugins.ocr.chandra]
+enabled = false
+model_path = "../_sources/chandra-ocr/model.bin"
+device = "cpu"  # cpu or cuda
+# For CUDA: set device = "cuda:0"
+confidence_threshold = 0.8
+
+# Mock OCR (for testing)
+[plugins.ocr.mock]
+enabled = false
+# Returns fixed text for testing
+mock_text = "test ocr result"
+
+[plugins.translator]
+# Default translator: argostranslate, google_translate, deepl, mock
+default = "argostranslate"
+
+# Argostranslate (local neural translation)
+[plugins.translator.argostranslate]
+enabled = true
+models_path = "../_sources/argostranslate/models"
+# Auto-download missing models
+auto_download = true
+# Cache translations to disk
+cache_enabled = true
+cache_ttl = 86400  # 24 hours in seconds
+
+# Google Translate API (requires API key)
+[plugins.translator.google_translate]
+enabled = false
+api_key = "YOUR_API_KEY_HERE"
+# api_key_env = "GOOGLE_TRANSLATE_API_KEY"  # Or load from env var
+
+# DeepL API (requires API key)
+[plugins.translator.deepl]
+enabled = false
+api_key = "YOUR_API_KEY_HERE"
+# api_key_env = "DEEPL_API_KEY"
+
+# Mock translator (for testing)
+[plugins.translator.mock]
+enabled = false
+# Returns simple mapping: ball -> ballon, ball -> 球
+mock_translations = { en = { fr = { ball = "ballon" }, zh-TW = { ball = "球" } } }
+
+[plugins.search]
+# Search backend: meilisearch, tantivy, simple
+backend = "meilisearch"
+
+# Meilisearch configuration
+[plugins.search.meilisearch]
+host = "http://localhost:7700"
+# API key (optional, for production)
+# api_key = "YOUR_MASTER_KEY"
+# Index name prefix
+index_prefix = "indexao_"
+# Max search results
+max_results = 100
+
+# Tantivy (Rust-based search)
+[plugins.search.tantivy]
+enabled = false
+index_path = "../index/tantivy/"
+# Memory budget in MB
+memory_budget = 500
+
+# Simple SQLite FTS (fallback)
+[plugins.search.simple]
+enabled = false
+db_path = "../index/simple.db"
+
+[indexer]
+# File scanning options
+max_file_size = 104857600  # 100 MB in bytes
+exclude_patterns = ["*.tmp", "*.log", ".git/", "__pycache__/"]
+include_patterns = ["*.txt", "*.md", "*.pdf", "*.jpg", "*.png", "*.docx"]
+
+# Concurrency (number of parallel workers)
+workers = 4
+
+# Whether to follow symbolic links
+follow_symlinks = false
+
+[logging]
+# Global log level: TRACE, DEBUG, INFO, WARNING, ERROR, CRITICAL
+level = "INFO"
+
+# Console output
+[logging.console]
+enabled = true
+level = "INFO"  # Override global level for console
+colored = true  # ANSI colors for terminal output
+
+# Main log file (INFO and above)
+[logging.file]
+enabled = true
+level = "DEBUG"
+path = "../index/logs"  # Directory for log files
+rotation = "daily"  # daily, weekly, or size
+backup_count = 7  # Keep 7 days of logs
+
+# Debug log file (TRACE and above, verbose)
+[logging.debug_file]
+enabled = true
+level = "TRACE"
+rotation = "daily"
+backup_count = 3  # Keep fewer debug logs (they're verbose)
+
+# JSON structured logs (for log aggregation tools)
+[logging.json]
+enabled = false  # Enable for production log aggregation
+level = "DEBUG"
+path = "../index/logs"
+
+# Log format
+[logging.format]
+text = "[{asctime}] {levelname:8} {name:30} {message}"
+date = "%Y-%m-%d %H:%M:%S"
+
+# Performance monitoring
+[logging.performance]
+# Log warning if operation exceeds threshold (milliseconds)
+slow_threshold_ms = 1000
+
+# Module-specific log levels (optional)
+# [logging.modules]
+# "indexao.scanner" = "DEBUG"
+# "indexao.ocr" = "TRACE"
+
+[cache]
+# Enable caching
+enabled = true
+
+# Cache directory
+path = "../index/cache"
+
+# TTL for different cache types (in seconds)
+ocr_ttl = 604800      # 7 days
+translation_ttl = 86400  # 24 hours
+metadata_ttl = 3600   # 1 hour
+
+# Max cache size (in MB, 0 = unlimited)
+max_size = 1000
+
+[export]
+# Default export format: json, markdown
+default_format = "json"
+
+# JSON export options
+[export.json]
+pretty_print = true
+indent = 2
+include_metadata = true
+
+# Markdown export options
+[export.markdown]
+include_toc = true
+include_metadata = true
+code_fence = "```"
+
+[api]
+# Enable REST API (future feature)
+enabled = false
+host = "127.0.0.1"
+port = 8000
+cors_origins = ["http://localhost:3000"]

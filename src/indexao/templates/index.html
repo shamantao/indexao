@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=1.0.1">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-database"></i>
+                </div>
+                <h1>Indexao</h1>
+            </div>
+            <nav class="header-nav">
+                <a href="/" class="active">
+                    <i class="fas fa-upload"></i>
+                    Upload
+                </a>
+                <a href="/config">
+                    <i class="fas fa-cog"></i>
+                    Configuration
+                </a>
+                <a href="/api/config" target="_blank">
+                    <i class="fas fa-code"></i>
+                    API
+                </a>
+            </nav>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div id="alert" class="alert"></div>
+        
+        <!-- Upload Card -->
+        <div class="card">
+            <h2>
+                <i class="fas fa-file-upload"></i>
+                Upload Document
+            </h2>
+            <p>
+                Formats acceptés: PDF, PNG, JPG, JPEG, TIFF, TXT
+            </p>
+            
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <p style="font-size: 1.1em; margin-bottom: 0.5rem; color: var(--text-primary);">
+                    Glissez-déposez un fichier ici
+                </p>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">ou</p>
+                <input type="file" id="fileInput" style="display: none;" 
+                       accept=".pdf,.png,.jpg,.jpeg,.tiff,.txt">
+                <button onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-folder-open"></i>
+                    Choisir un fichier
+                </button>
+            </div>
+        </div>
+        
+        <!-- Config Card -->
+        <div class="card">
+            <h2>
+                <i class="fas fa-info-circle"></i>
+                Current Configuration
+            </h2>
+            <div class="config-grid">
+                <div class="config-item">
+                    <div class="config-label">OCR Engine</div>
+                    <div class="config-value">
+                        <i class="fas fa-eye"></i>
+                        {{ config.ocr_engine }}
+                    </div>
+                </div>
+                <div class="config-item">
+                    <div class="config-label">Translator</div>
+                    <div class="config-value">
+                        <i class="fas fa-language"></i>
+                        {{ config.translator_engine }}
+                    </div>
+                </div>
+                <div class="config-item">
+                    <div class="config-label">Search Engine</div>
+                    <div class="config-value">
+                        <i class="fas fa-search"></i>
+                        {{ config.search_engine }}
+                    </div>
+                </div>
+                <div class="config-item">
+                    <div class="config-label">Languages</div>
+                    <div class="config-value">
+                        <i class="fas fa-globe"></i>
+                        {{ config.languages|join(', ') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Files Card -->
+        <div class="card">
+            <h2>
+                <i class="fas fa-folder"></i>
+                Uploaded Files
+            </h2>
+            <button onclick="loadFiles()">
+                <i class="fas fa-sync-alt"></i>
+                Rafraîchir
+            </button>
+            <div id="fileList" class="file-list">
+                <p style="color: var(--text-secondary);">Chargement...</p>
+            </div>
+        </div>
+    </div>
+    
+    
+    <footer>
+        <p>Indexao v0.1.0 - Document Indexing System | Built with FastAPI</p>
+    </footer>
+    
+    <script src="/static/js/app.js?v=1.0.1"></script>
+</body>
+</html>
