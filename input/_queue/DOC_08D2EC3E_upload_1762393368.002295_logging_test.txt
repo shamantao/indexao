@@ -1,0 +1,1 @@
+Testing enhanced logging with detailed pipeline tracking. This document contains meaningful text for extraction.

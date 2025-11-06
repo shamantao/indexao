@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documents - Indexao</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=1.0.2">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-database"></i>
+                </div>
+                <h1>Indexao</h1>
+            </div>
+            <nav class="header-nav">
+                <a href="/">
+                    <i class="fas fa-upload"></i>
+                    Upload
+                </a>
+                <a href="/documents" class="active">
+                    <i class="fas fa-file-alt"></i>
+                    Documents
+                </a>
+                <a href="/search">
+                    <i class="fas fa-search"></i>
+                    Search
+                </a>
+                <a href="/config">
+                    <i class="fas fa-cog"></i>
+                    Config
+                </a>
+            </nav>
+        </div>
+    </header>
+    
+    <div class="container">
+        <!-- Statistics Card -->
+        <div class="card">
+            <h2>
+                <i class="fas fa-chart-bar"></i>
+                Statistiques
+            </h2>
+            <div class="config-grid" id="statsGrid">
+                <div class="config-item">
+                    <div class="config-label">Total</div>
+                    <div class="config-value" id="statTotal">
+                        <i class="fas fa-file"></i>
+                        <span class="loading"></span>
+                    </div>
+                </div>
+                <div class="config-item">
+                    <div class="config-label">Complétés</div>
+                    <div class="config-value" id="statCompleted" style="color: var(--accent-secondary);">
+                        <i class="fas fa-check-circle"></i>
+                        <span class="loading"></span>
+                    </div>
+                </div>
+                <div class="config-item">
+                    <div class="config-label">Échoués</div>
+                    <div class="config-value" id="statFailed" style="color: var(--accent-danger);">
+                        <i class="fas fa-times-circle"></i>
+                        <span class="loading"></span>
+                    </div>
+                </div>
+                <div class="config-item">
+                    <div class="config-label">Taux de succès</div>
+                    <div class="config-value" id="statSuccess">
+                        <i class="fas fa-percentage"></i>
+                        <span class="loading"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Documents Card -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                <h2 style="margin: 0;">
+                    <i class="fas fa-folder-open"></i>
+                    Documents
+                    <span id="docCount" style="color: var(--text-secondary); font-size: 0.9em;"></span>
+                </h2>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <!-- Filters -->
+                    <select id="statusFilter" onchange="filterDocuments()" style="padding: 0.5rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                        <option value="">Tous les statuts</option>
+                        <option value="completed">Complétés</option>
+                        <option value="failed">Échoués</option>
+                        <option value="pending">En attente</option>
+                    </select>
+                    
+                    <button onclick="loadDocuments()" style="min-width: auto;">
+                        <i class="fas fa-sync-alt"></i>
+                        Rafraîchir
+                    </button>
+                </div>
+            </div>
+            
+            <div id="documentsList" class="documents-list">
+                <p style="color: var(--text-secondary);">Chargement...</p>
+            </div>
+            
+            <!-- Pagination -->
+            <div id="pagination" style="display: none; margin-top: 1rem; text-align: center;">
+                <button id="prevPage" onclick="prevPage()" disabled>
+                    <i class="fas fa-chevron-left"></i>
+                    Précédent
+                </button>
+                <span id="pageInfo" style="margin: 0 1rem; color: var(--text-secondary);"></span>
+                <button id="nextPage" onclick="nextPage()" disabled>
+                    Suivant
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Document Detail Modal -->
+    <div id="modal" class="modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modalTitle">Document Details</h3>
+                <button onclick="closeModal()" class="modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>Indexao v0.1.0 - Document Indexing System | Built with FastAPI</p>
+    </footer>
+    
+    <script src="/static/js/documents.js?v=1.0.2"></script>
+</body>
+</html>

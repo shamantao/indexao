@@ -49,6 +49,7 @@ Cargo.lock
 htmlcov/
 .tox/
 .hypothesis/
+tests/
 
 # Logs
 *.log

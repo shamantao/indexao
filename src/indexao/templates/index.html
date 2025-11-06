@@ -22,13 +22,17 @@
                     <i class="fas fa-upload"></i>
                     Upload
                 </a>
+                <a href="/documents">
+                    <i class="fas fa-file-alt"></i>
+                    Documents
+                </a>
+                <a href="/search">
+                    <i class="fas fa-search"></i>
+                    Search
+                </a>
                 <a href="/config">
                     <i class="fas fa-cog"></i>
-                    Configuration
-                </a>
-                <a href="/api/config" target="_blank">
-                    <i class="fas fa-code"></i>
-                    API
+                    Config
                 </a>
             </nav>
         </div>
@@ -60,6 +64,57 @@
                 <button onclick="document.getElementById('fileInput').click()">
                     <i class="fas fa-folder-open"></i>
                     Choisir un fichier
+                </button>
+            </div>
+            
+            <!-- Upload Progress -->
+            <div id="uploadProgress" class="upload-progress" style="display: none;">
+                <div class="progress-header">
+                    <h3 id="progressTitle">Upload en cours...</h3>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+                <div id="progressStatus" class="progress-status"></div>
+                
+                <!-- Processing Stages -->
+                <div id="processingStages" class="processing-stages" style="display: none;">
+                    <div class="stage" id="stage-upload">
+                        <i class="fas fa-upload"></i>
+                        <span>Upload</span>
+                        <i class="fas fa-spinner fa-spin stage-spinner"></i>
+                        <i class="fas fa-check stage-check" style="display: none;"></i>
+                    </div>
+                    <div class="stage" id="stage-detection">
+                        <i class="fas fa-file-search"></i>
+                        <span>Détection</span>
+                        <i class="fas fa-spinner fa-spin stage-spinner" style="display: none;"></i>
+                        <i class="fas fa-check stage-check" style="display: none;"></i>
+                    </div>
+                    <div class="stage" id="stage-extraction">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Extraction</span>
+                        <i class="fas fa-spinner fa-spin stage-spinner" style="display: none;"></i>
+                        <i class="fas fa-check stage-check" style="display: none;"></i>
+                    </div>
+                    <div class="stage" id="stage-translation">
+                        <i class="fas fa-language"></i>
+                        <span>Traduction</span>
+                        <i class="fas fa-spinner fa-spin stage-spinner" style="display: none;"></i>
+                        <i class="fas fa-check stage-check" style="display: none;"></i>
+                    </div>
+                    <div class="stage" id="stage-indexing">
+                        <i class="fas fa-database"></i>
+                        <span>Indexation</span>
+                        <i class="fas fa-spinner fa-spin stage-spinner" style="display: none;"></i>
+                        <i class="fas fa-check stage-check" style="display: none;"></i>
+                    </div>
+                </div>
+                
+                <button id="progressClose" onclick="closeProgress()" style="display: none; margin-top: 1rem;">
+                    <i class="fas fa-times"></i>
+                    Fermer
                 </button>
             </div>
         </div>
@@ -104,14 +159,22 @@
         
         <!-- Files Card -->
         <div class="card">
-            <h2>
-                <i class="fas fa-folder"></i>
-                Uploaded Files
-            </h2>
-            <button onclick="loadFiles()">
-                <i class="fas fa-sync-alt"></i>
-                Rafraîchir
-            </button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 style="margin: 0;">
+                    <i class="fas fa-folder"></i>
+                    Uploaded Files
+                </h2>
+                <div>
+                    <button onclick="loadFiles()" style="margin-right: 0.5rem;">
+                        <i class="fas fa-sync-alt"></i>
+                        Rafraîchir
+                    </button>
+                    <button onclick="window.location.href='/documents'">
+                        <i class="fas fa-list"></i>
+                        Voir tout
+                    </button>
+                </div>
+            </div>
             <div id="fileList" class="file-list">
                 <p style="color: var(--text-secondary);">Chargement...</p>
             </div>

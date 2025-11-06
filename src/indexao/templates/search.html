@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search - Indexao</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=1.0.2">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-database"></i>
+                </div>
+                <h1>Indexao</h1>
+            </div>
+            <nav class="header-nav">
+                <a href="/">
+                    <i class="fas fa-upload"></i>
+                    Upload
+                </a>
+                <a href="/documents">
+                    <i class="fas fa-file-alt"></i>
+                    Documents
+                </a>
+                <a href="/search" class="active">
+                    <i class="fas fa-search"></i>
+                    Search
+                </a>
+                <a href="/config">
+                    <i class="fas fa-cog"></i>
+                    Config
+                </a>
+            </nav>
+        </div>
+    </header>
+    
+    <div class="container">
+        <!-- Search Card -->
+        <div class="card">
+            <h2>
+                <i class="fas fa-search"></i>
+                Search Documents
+            </h2>
+            
+            <form onsubmit="performSearch(event)" class="search-form">
+                <div class="search-input-group">
+                    <input 
+                        type="text" 
+                        id="searchQuery" 
+                        placeholder="Entrez votre recherche..."
+                        class="search-input"
+                        autofocus
+                    >
+                    <button type="submit" class="search-button">
+                        <i class="fas fa-search"></i>
+                        Rechercher
+                    </button>
+                </div>
+                
+                <div class="search-filters">
+                    <div class="filter-group">
+                        <label>
+                            <input type="checkbox" id="searchContent" checked>
+                            Contenu
+                        </label>
+                        <label>
+                            <input type="checkbox" id="searchTranslations" checked>
+                            Traductions
+                        </label>
+                        <label>
+                            <input type="checkbox" id="searchFilenames">
+                            Noms de fichiers
+                        </label>
+                    </div>
+                    
+                    <select id="searchStatus" class="filter-select">
+                        <option value="">Tous les statuts</option>
+                        <option value="completed" selected>Complétés uniquement</option>
+                        <option value="failed">Échoués</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Results Card -->
+        <div id="resultsCard" class="card" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 style="margin: 0;">
+                    <i class="fas fa-list"></i>
+                    Results
+                    <span id="resultsCount" style="color: var(--text-secondary); font-size: 0.9em;"></span>
+                </h2>
+                <button onclick="clearSearch()">
+                    <i class="fas fa-times"></i>
+                    Clear
+                </button>
+            </div>
+            
+            <div id="searchResults" class="search-results">
+                <!-- Results populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Examples Card -->
+        <div class="card">
+            <h2>
+                <i class="fas fa-lightbulb"></i>
+                Examples
+            </h2>
+            <div class="examples-grid">
+                <div class="example-item" onclick="searchExample('database')">
+                    <i class="fas fa-database"></i>
+                    <span>database</span>
+                </div>
+                <div class="example-item" onclick="searchExample('test')">
+                    <i class="fas fa-vial"></i>
+                    <span>test</span>
+                </div>
+                <div class="example-item" onclick="searchExample('document')">
+                    <i class="fas fa-file-alt"></i>
+                    <span>document</span>
+                </div>
+                <div class="example-item" onclick="searchExample('Sprint')">
+                    <i class="fas fa-running"></i>
+                    <span>Sprint</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Document Detail Modal (reuse from documents page) -->
+    <div id="modal" class="modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modalTitle">Document Details</h3>
+                <button onclick="closeModal()" class="modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>Indexao v0.1.0 - Document Indexing System | Built with FastAPI</p>
+    </footer>
+    
+    <script src="/static/js/search.js?v=1.0.2"></script>
+</body>
+</html>

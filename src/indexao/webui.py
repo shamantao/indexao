@@ -22,6 +22,11 @@ import uvicorn
 
 from indexao.config import load_config, get_config, Config
 from indexao.logger import get_logger
+from indexao.upload_handler import UploadHandler, UploadError
+from indexao.scanner import FileScanner, scan_directory
+from indexao.processor import DocumentProcessor, ProcessingStatus
+from indexao.database import DocumentDatabase
+from indexao.models.document import ProcessingStatus as DocStatus
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -61,6 +66,12 @@ async def startup_event():
         Path(config.output_dir).mkdir(parents=True, exist_ok=True)
         Path(config.temp_dir).mkdir(parents=True, exist_ok=True)
         
+        # Initialize upload handler
+        app.state.upload_handler = UploadHandler(config)
+        
+        # Initialize document processor
+        app.state.processor = DocumentProcessor(config, app.state.upload_handler)
+        
         logger.info("✓ Web UI ready")
     except Exception as e:
         logger.error(f"Failed to start Web UI: {e}")
@@ -91,6 +102,24 @@ async def config_page(request: Request):
         "request": request,
         "title": "Configuration",
         "config": config
+    })
+
+
+@app.get("/documents", response_class=HTMLResponse)
+async def documents_page(request: Request):
+    """Documents list page."""
+    return templates.TemplateResponse("documents.html", {
+        "request": request,
+        "title": "Documents - Indexao"
+    })
+
+
+@app.get("/search", response_class=HTMLResponse)
+async def search_page(request: Request):
+    """Search page."""
+    return templates.TemplateResponse("search.html", {
+        "request": request,
+        "title": "Search - Indexao"
     })
 
 
@@ -140,73 +169,104 @@ async def upload_document(file: UploadFile = File(...)) -> Dict[str, Any]:
     """
     Upload a document for indexing.
     
+    Uses UploadHandler to validate, process, and queue files.
+    
     Args:
         file: Uploaded file
     
     Returns:
-        Upload status and file info
+        Upload result with document ID and metadata
     """
+    temp_file = None
     try:
-        config = get_config()
-        
-        # Validate file
+        # Validate filename
         if not file.filename:
             raise HTTPException(status_code=400, detail="No filename provided")
         
-        # Check file extension
-        allowed_extensions = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".txt"}
-        file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in allowed_extensions:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File type {file_ext} not allowed. Allowed: {allowed_extensions}"
-            )
+        # Save to temporary file
+        config = get_config()
+        temp_dir = Path(config.temp_dir)
+        temp_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save file to input directory
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_filename = f"{timestamp}_{file.filename}"
-        file_path = Path(config.input_dir) / safe_filename
-        
-        # Write file
+        temp_file = temp_dir / f"upload_{datetime.now().timestamp()}_{file.filename}"
         content = await file.read()
-        file_path.write_bytes(content)
+        temp_file.write_bytes(content)
         
-        logger.info(f"Uploaded file: {file_path} ({len(content)} bytes)")
+        logger.info(f"Received upload: {file.filename} ({len(content)} bytes)")
+        
+        # Process upload using UploadHandler
+        upload_handler: UploadHandler = app.state.upload_handler
+        result = upload_handler.handle_upload(temp_file, file.filename)
         
         return {
             "status": "success",
-            "filename": safe_filename,
-            "original_filename": file.filename,
-            "size_bytes": len(content),
-            "path": str(file_path),
-            "message": "File uploaded successfully. Processing will start shortly."
+            "document_id": result['document_id'],
+            "filename": result['metadata']['original_filename'],
+            "size_bytes": result['metadata']['size_bytes'],
+            "mime_type": result['metadata']['mime_type'],
+            "checksum": result['metadata']['checksum'][:16],  # Short version
+            "message": result['message']
         }
+    
+    except UploadError as e:
+        logger.warning(f"Upload validation failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     
     except HTTPException:
         raise
+    
     except Exception as e:
         logger.error(f"Upload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+    
+    finally:
+        # Clean up temp file if it still exists
+        if temp_file and temp_file.exists():
+            try:
+                temp_file.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file: {e}")
 
 
 @app.get("/api/files")
 async def list_files() -> Dict[str, Any]:
-    """List uploaded files in input directory."""
+    """
+    List uploaded files using FileScanner.
+    
+    Returns file metadata from input directory including queue.
+    """
     try:
         config = get_config()
         input_dir = Path(config.input_dir)
         
+        if not input_dir.exists():
+            return {
+                "status": "success",
+                "count": 0,
+                "files": [],
+                "message": "Input directory not found"
+            }
+        
+        # Scan input directory (excluding queue subdirectory)
+        scanner = FileScanner(
+            root_dir=input_dir,
+            recursive=False,  # Don't recurse into _queue
+            include_hidden=False
+        )
+        
+        file_metadata = scanner.scan()
+        
+        # Convert to response format
         files = []
-        if input_dir.exists():
-            for file_path in input_dir.iterdir():
-                if file_path.is_file():
-                    stat = file_path.stat()
-                    files.append({
-                        "filename": file_path.name,
-                        "size_bytes": stat.st_size,
-                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        "extension": file_path.suffix
-                    })
+        for meta in file_metadata:
+            files.append({
+                "filename": meta.filename,
+                "size_bytes": meta.size_bytes,
+                "modified": meta.modified_at.isoformat(),
+                "extension": meta.extension,
+                "mime_type": meta.mime_type,
+                "path": str(meta.relative_path) if meta.relative_path else meta.filename
+            })
         
         # Sort by modification time (newest first)
         files.sort(key=lambda x: x["modified"], reverse=True)
@@ -220,6 +280,221 @@ async def list_files() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to list files: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list files: {str(e)}")
+
+
+@app.get("/api/scan")
+async def scan_input_directory() -> Dict[str, Any]:
+    """
+    Scan input directory and return statistics.
+    
+    Returns detailed scan summary with file counts and sizes.
+    """
+    try:
+        config = get_config()
+        input_dir = Path(config.input_dir)
+        
+        if not input_dir.exists():
+            raise HTTPException(status_code=404, detail="Input directory not found")
+        
+        # Create scanner with common document extensions
+        scanner = FileScanner(
+            root_dir=input_dir,
+            recursive=True,
+            include_hidden=False,
+            allowed_extensions={
+                '.txt', '.md', '.pdf', '.doc', '.docx',
+                '.jpg', '.jpeg', '.png', '.tiff', '.gif',
+                '.csv', '.json', '.xml', '.html'
+            }
+        )
+        
+        summary = scanner.get_summary()
+        
+        return {
+            "status": "success",
+            "summary": summary
+        }
+    
+    except HTTPException:
+        raise
+    
+    except Exception as e:
+        logger.error(f"Scan failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
+
+
+@app.get("/api/queue")
+async def list_queue() -> Dict[str, Any]:
+    """
+    List files in processing queue.
+    
+    Returns files waiting to be processed.
+    """
+    try:
+        upload_handler: UploadHandler = app.state.upload_handler
+        queue_files = upload_handler.list_queue()
+        
+        files = []
+        for file_path in queue_files:
+            stat = file_path.stat()
+            # Extract document ID from filename (DOC_XXXXXXXX_...)
+            parts = file_path.name.split('_', 2)
+            doc_id = f"{parts[0]}_{parts[1]}" if len(parts) >= 2 else "UNKNOWN"
+            
+            files.append({
+                "document_id": doc_id,
+                "filename": file_path.name,
+                "size_bytes": stat.st_size,
+                "queued_at": datetime.fromtimestamp(stat.st_mtime).isoformat()
+            })
+        
+        # Sort by queue time (oldest first - FIFO)
+        files.sort(key=lambda x: x["queued_at"])
+        
+        return {
+            "status": "success",
+            "count": len(files),
+            "files": files
+        }
+    
+    except Exception as e:
+        logger.error(f"Failed to list queue: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list queue: {str(e)}")
+
+
+@app.post("/api/process")
+async def process_documents() -> Dict[str, Any]:
+    """
+    Process all documents in the queue.
+    
+    Triggers the complete pipeline:
+    - Scan queue directory
+    - Process each file (OCR → Translation → Indexing)
+    - Return processing results
+    
+    Returns:
+        JSON with processing results for each file
+    """
+    try:
+        logger.info("Processing queue via API request")
+        
+        processor: DocumentProcessor = app.state.processor
+        
+        # Process all files in queue
+        results = processor.process_queue()
+        
+        if not results:
+            return {
+                "status": "success",
+                "message": "Queue is empty",
+                "processed": 0,
+                "results": []
+            }
+        
+        # Convert results to dict
+        results_data = [r.to_dict() for r in results]
+        
+        # Count successes and failures
+        completed = sum(1 for r in results if r.status == ProcessingStatus.COMPLETED)
+        failed = sum(1 for r in results if r.status == ProcessingStatus.FAILED)
+        
+        return {
+            "status": "success",
+            "message": f"Processed {len(results)} documents",
+            "processed": len(results),
+            "completed": completed,
+            "failed": failed,
+            "results": results_data
+        }
+    
+    except Exception as e:
+        logger.error(f"Failed to process queue: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process queue: {str(e)}")
+
+
+@app.post("/api/process/{document_id}")
+async def process_single_document(document_id: str) -> Dict[str, Any]:
+    """
+    Process a single document from the queue.
+    
+    Args:
+        document_id: Document ID (e.g., DOC_FDABB347)
+        
+    Returns:
+        JSON with processing result
+    """
+    try:
+        logger.info(f"Processing single document: {document_id}")
+        
+        processor: DocumentProcessor = app.state.processor
+        upload_handler: UploadHandler = app.state.upload_handler
+        
+        # Find file in queue
+        queue_files = upload_handler.list_queue()
+        matching_files = [f for f in queue_files if document_id in f.name]
+        
+        if not matching_files:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Document {document_id} not found in queue"
+            )
+        
+        file_path = matching_files[0]
+        
+        # Get metadata
+        from .scanner import FileScanner
+        scanner = FileScanner(file_path.parent, recursive=False)
+        
+        # Scan and find matching file by name
+        all_metadata = scanner.scan()
+        metadata = None
+        
+        for m in all_metadata:
+            if m.filename == file_path.name:
+                metadata = m
+                break
+        
+        if not metadata:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to get metadata for {document_id}"
+            )
+        
+        # Process file
+        result = processor.process_file(file_path, metadata)
+        
+        return {
+            "status": "success",
+            "result": result.to_dict()
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to process document {document_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process document: {str(e)}")
+
+
+@app.get("/api/processor/status")
+async def get_processor_status() -> Dict[str, Any]:
+    """
+    Get processor status and statistics.
+    
+    Returns:
+        JSON with processor information
+    """
+    try:
+        processor: DocumentProcessor = app.state.processor
+        summary = processor.get_status_summary()
+        
+        return {
+            "status": "success",
+            **summary
+        }
+    
+    except Exception as e:
+        logger.error(f"Failed to get processor status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
 
 
 @app.get("/health")
@@ -240,6 +515,120 @@ async def health_check() -> Dict[str, Any]:
             "timestamp": datetime.now().isoformat(),
             "error": str(e)
         }
+
+
+@app.get("/api/documents")
+async def list_documents(
+    status: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+) -> Dict[str, Any]:
+    """
+    List documents from database.
+    
+    Query params:
+        status: Filter by processing status (pending, completed, failed)
+        limit: Maximum number of results (default: 100)
+        offset: Offset for pagination (default: 0)
+    """
+    try:
+        db = DocumentDatabase("data/indexao.db")
+        
+        # Parse status filter
+        doc_status = None
+        if status:
+            try:
+                doc_status = DocStatus(status.lower())
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid status: {status}. Valid values: pending, processing, completed, failed"
+                )
+        
+        # Get documents
+        documents = db.list_documents(status=doc_status, limit=limit, offset=offset)
+        total = db.count_documents(status=doc_status)
+        
+        # Convert to dict
+        results = []
+        for doc in documents:
+            doc_dict = doc.to_dict()
+            # Add shortened content preview
+            doc_dict["content_preview"] = doc.content[:200] + "..." if len(doc.content) > 200 else doc.content
+            del doc_dict["content"]  # Remove full content for list view
+            results.append(doc_dict)
+        
+        return {
+            "status": "success",
+            "total": total,
+            "count": len(results),
+            "limit": limit,
+            "offset": offset,
+            "documents": results
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/documents/{doc_id}")
+async def get_document(doc_id: str) -> Dict[str, Any]:
+    """
+    Get a specific document by ID.
+    
+    Args:
+        doc_id: Document ID
+    """
+    try:
+        db = DocumentDatabase("data/indexao.db")
+        document = db.get_document(doc_id)
+        
+        if not document:
+            raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+        
+        return {
+            "status": "success",
+            "document": document.to_dict()
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting document {doc_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/stats")
+async def get_statistics() -> Dict[str, Any]:
+    """Get database statistics."""
+    try:
+        db = DocumentDatabase("data/indexao.db")
+        
+        total = db.count_documents()
+        completed = db.count_documents(DocStatus.COMPLETED)
+        failed = db.count_documents(DocStatus.FAILED)
+        pending = db.count_documents(DocStatus.PENDING)
+        
+        queue_stats = db.get_queue_stats()
+        
+        return {
+            "status": "success",
+            "documents": {
+                "total": total,
+                "completed": completed,
+                "failed": failed,
+                "pending": pending,
+                "success_rate": round(completed / total * 100, 1) if total > 0 else 0
+            },
+            "queue": queue_stats
+        }
+    
+    except Exception as e:
+        logger.error(f"Error getting statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def run_server(host: str = "0.0.0.0", port: int = 8000, reload: bool = False):

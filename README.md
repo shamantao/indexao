@@ -4,9 +4,34 @@
 
 Indexao is a modular, user-centric tool to index arbitrary file trees and enable unified multilingual search, full translated visualization (keeping structure), and export to JSON/Markdown.
 
+**Current Status**: Sprint 1 Complete ✅ - Full UI with mock adapters  
+**Version**: 0.2.0-dev  
+**Next**: Sprint 1.2 (Cleanup) → Sprint 2 (Plugin Manager) → Sprint 3 (Real Adapters → MVP)
+
+---
+
 ## 🎯 Features
 
-### Core Capabilities
+### Current (Sprint 0-1 Complete)
+
+- ✅ **Web UI**: Upload, Documents, Search pages with dark mode
+- ✅ **Upload Progress**: Animated 5-stage pipeline visualization
+- ✅ **Document Management**: List with statistics, pagination, filtering, modals
+- ✅ **Search Interface**: Full-text search with query highlighting
+- ✅ **Mock Adapters**: OCR, Translation, Search (for development/testing)
+- ✅ **Database**: SQLite with document model and metadata storage
+- ✅ **API Management**: Start/stop/reload script with health checks
+- ✅ **Configuration**: TOML-based plugin configuration
+
+### Planned (Sprint 2-3)
+
+- ⏳ **Plugin Manager**: Dynamic adapter loading and hot-swap
+- ⏳ **Tesseract OCR**: Real text extraction (100+ languages)
+- ⏳ **Argos Translate**: Offline neural translation
+- ⏳ **Meilisearch**: Production search engine with typo-tolerance
+- ⏳ **MVP**: Testable by humans (end of Sprint 3, ~2025-11-25)
+
+### Core Capabilities (Target)
 
 - **Universal Indexing**: Recursively scans local, network, or cloud file trees
 - **Multilingual Search**: Search across languages (`ballon` = `ball` = `球`)
@@ -25,6 +50,12 @@ All components are **swappable plugins**:
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+- Python 3.11+
+- pip and virtualenv
+- (Optional) Nginx for reverse proxy
+
 ### Installation
 
 ```bash
@@ -32,38 +63,69 @@ All components are **swappable plugins**:
 git clone https://github.com/shamantao/indexao.git
 cd indexao
 
-# Install dependencies
-pip install -e .
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Or use the hybrid Rust/Python build (faster)
-pip install maturin
-maturin develop --release
+# Install with web UI
+pip install -e ".[webui]"
 ```
 
-### First Run - Demo
+### Start the Application
 
 ```bash
-# Run demo with sample data
-make demo
-
-# Or manually:
-python -m indexao.cli index ../_Volumes/demo
-python -m indexao.cli search "ball"
-```
-
-```bash
-# Démarrer l'API
+# Start API server
 ./ci/indexao-api.sh start
 
-# Vérifier le statut
+# Check status
 ./ci/indexao-api.sh status
 
-# Après modification du code : recharger sans cache
-./ci/indexao-api.sh reload
-
-# Suivre les logs
+# View logs
 ./ci/indexao-api.sh logs
+
+# Stop server
+./ci/indexao-api.sh stop
 ```
+
+### Access Web Interface
+
+```bash
+# Direct access (default)
+open http://127.0.0.1:8000
+
+# Or with Nginx (if configured)
+open http://indexao.localhost
+```
+
+### Web UI Features
+
+**Upload Page** (`/`)
+
+- Drag-and-drop file upload
+- Multi-file support
+- Real-time 5-stage progress:
+  1. Upload
+  2. Detection (MIME type, language)
+  3. Extraction (OCR)
+  4. Translation
+  5. Indexing (search engine)
+
+**Documents Page** (`/documents`)
+
+- Statistics dashboard (total, completed, failed, success rate)
+- Paginated document list (20 items/page)
+- Status filtering (all, completed, failed, pending)
+- Color-coded badges
+- Document detail modal
+- Auto-refresh (30s)
+
+**Search Page** (`/search`)
+
+- Full-text search input
+- Filter by: content, translations, filenames
+- Status filter
+- Query highlighting in results
+- Example queries for quick searches
 
 ### Configuration
 
@@ -79,54 +141,135 @@ Example `config.toml`:
 
 ```toml
 [paths]
-index_root = "../index"
-sources_root = "../_sources"
-volumes_root = "../_Volumes"
+input_dir = "input"
+output_dir = "output"
+logs_dir = "logs"
+db_path = "data/indexao.db"
 
-[languages]
-enabled = ["fr", "en", "zh-TW"]
-default = "en"
+[logging]
+level = "INFO"
+console_enabled = true
+file_enabled = true
 
 [plugins.ocr]
-default = "tesseract"
-# Available: tesseract, chandra, google_vision
+adapter = "mock"  # Will be "tesseract" in Sprint 3
+# Available (future): tesseract, chandra, google_vision
 
 [plugins.translator]
-default = "argostranslate"
-# Available: argostranslate, google_translate, deepl
+adapter = "mock"  # Will be "argos" in Sprint 3
+languages = ["en", "fr", "es", "de"]
+# Available (future): argostranslate, google_translate, deepl
 
 [plugins.search]
-backend = "meilisearch"
-# Available: meilisearch, tantivy, simple
+adapter = "mock"  # Will be "meilisearch" in Sprint 3
+# Available (future): meilisearch, tantivy, elasticsearch
 ```
 
-## 📖 Usage Examples
+## 📖 API Usage
 
-### Index a folder
+### Upload File
 
 ```bash
-# Index local folder
-indexao index ~/Documents
-
-# Index with specific OCR engine
-indexao index ~/Pictures --ocr chandra
-
-# Index and translate immediately
-indexao index ~/Data --translate fr,en,zh-TW
+curl -X POST http://127.0.0.1:8000/api/upload \
+  -F "file=@document.pdf"
 ```
 
-### Search
+Response:
+
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440000",
+  "filename": "document.pdf",
+  "mime_type": "application/pdf",
+  "size": 245678
+}
+```
+
+### Process Document
 
 ```bash
-# Simple search
-indexao search "ballon"
+curl -X POST http://127.0.0.1:8000/api/process \
+  -H "Content-Type: application/json" \
+  -d '{"document_id": "550e8400-e29b-41d4-a716-446655440000"}'
+```
 
-# Search with language filter
-indexao search "ball" --lang en
+### List Documents
+
+```bash
+# All documents
+curl http://127.0.0.1:8000/api/documents
+
+# Filter by status
+curl http://127.0.0.1:8000/api/documents?status=completed
+
+# With limit
+curl http://127.0.0.1:8000/api/documents?limit=10
+```
+
+### Get Document Details
+
+```bash
+curl http://127.0.0.1:8000/api/documents/550e8400-e29b-41d4-a716-446655440000
+```
+
+### Get Statistics
+
+```bash
+curl http://127.0.0.1:8000/api/stats
+```
+
+Response:
+
+```json
+{
+  "total": 10,
+  "completed": 8,
+  "failed": 1,
+  "pending": 1,
+  "success_rate": 80.0
+}
+```
+
+## 🛠️ Development
+
+### Reload After Code Changes
+
+```bash
+# Reload with cache cleanup
+./ci/indexao-api.sh reload
+```
+
+### Run Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src/indexao
+
+# Run specific test file
+pytest tests/test_database.py
+```
+
+### Code Quality
+
+```bash
+# Lint code
+ruff check src/
+
+# Format code
+ruff format src/
+
+# Type checking
+mypy src/
+```
 
 # Search in metadata
+
 indexao search "author:john" --in metadata
-```
+
+````
 
 ### View & Export
 
@@ -139,7 +282,7 @@ indexao export /path/to/file.txt --format json --lang fr,en
 
 # Export to Markdown
 indexao export /path/to/image.jpg --format markdown --lang zh-TW
-```
+````
 
 ## 🏗️ Architecture
 
