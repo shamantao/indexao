@@ -131,6 +131,24 @@ start() {
     
     print_status "Lancement du serveur sur http://$HOST:$PORT"
     
+    # Export log directory from config.toml with variable expansion
+    if [ -f "$PROJECT_DIR/config.toml" ]; then
+        LOG_DIR_CONFIG=$(python3 -c "
+import sys
+sys.path.insert(0, 'src')
+from indexao.config import load_config
+try:
+    config = load_config()
+    print(config.logging.log_dir)
+except Exception as e:
+    print('logs', file=sys.stderr)
+" 2>/dev/null)
+        if [ -n "$LOG_DIR_CONFIG" ] && [ "$LOG_DIR_CONFIG" != "logs" ]; then
+            export INDEXAO_LOG_DIR="$LOG_DIR_CONFIG"
+            print_status "Log directory configured: $INDEXAO_LOG_DIR"
+        fi
+    fi
+    
     # Démarrer en arrière-plan
     nohup python -m indexao.webui > "$LOG_FILE" 2>&1 &
     local pid=$!

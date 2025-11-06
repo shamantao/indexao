@@ -1,15 +1,39 @@
 # Indexao Configuration Example
 # Copy this file to config.toml and customize for your setup
 
+# =============================================================================
+# PATH VARIABLES - Configure these first!
+# =============================================================================
+# Define base paths once, then reference them everywhere with ${variable}
+# This follows DRY principle and makes maintenance easy
+
+[paths.variables]
+# 1. Base directories (CUSTOMIZE THESE for your system)
+home = "/Users/YOUR_USERNAME"                          # Your home directory
+workspace_data = "${home}/pCloudSync/Projets/indexao"  # Your data workspace
+downloads = "${home}/Downloads"                        # Your downloads folder
+
+# 2. Derived paths (auto-expand from above, usually don't need to change)
+index = "${workspace_data}/data"                       # Indexed data
+sources = "${downloads}/_sources"                      # Plugin sources
+volumes = "${downloads}/_Volumes"                      # Test volumes
+logs = "${index}/logs"                                 # Log files
+cache = "${index}/cache"                               # Cache directory
+
+# =============================================================================
+# PATHS - Use variables defined above
+# =============================================================================
+
 [paths]
 # Where indexed data is stored (database, cache, logs)
-index_root = "../index"
+index_root = "${index}"
 
 # Where plugins and models are stored (Chandra-OCR, Argostranslate models, etc.)
-sources_root = "../_sources"
+sources_root = "${sources}"
 
 # Where user volumes and test data are located
-volumes_root = "../_Volumes"
+volumes_root = "${volumes}"
+
 
 # Path adapter configuration
 [paths.adapters]
@@ -55,7 +79,7 @@ confidence_threshold = 0.7
 # Chandra-OCR configuration (VLM-based OCR)
 [plugins.ocr.chandra]
 enabled = false
-model_path = "../_sources/chandra-ocr/model.bin"
+model_path = "/path/to/your/workspace/indexao/_sources/chandra-ocr/model.bin"
 device = "cpu"  # cpu or cuda
 # For CUDA: set device = "cuda:0"
 confidence_threshold = 0.8
@@ -73,7 +97,7 @@ default = "argostranslate"
 # Argostranslate (local neural translation)
 [plugins.translator.argostranslate]
 enabled = true
-models_path = "../_sources/argostranslate/models"
+models_path = "/path/to/your/workspace/indexao/_sources/argostranslate/models"
 # Auto-download missing models
 auto_download = true
 # Cache translations to disk
@@ -115,14 +139,14 @@ max_results = 100
 # Tantivy (Rust-based search)
 [plugins.search.tantivy]
 enabled = false
-index_path = "../index/tantivy/"
+index_path = "/path/to/your/workspace/indexao/index/tantivy/"
 # Memory budget in MB
 memory_budget = 500
 
 # Simple SQLite FTS (fallback)
 [plugins.search.simple]
 enabled = false
-db_path = "../index/simple.db"
+db_path = "/path/to/your/workspace/indexao/index/simple.db"
 
 [indexer]
 # File scanning options
@@ -150,8 +174,10 @@ colored = true  # ANSI colors for terminal output
 [logging.file]
 enabled = true
 level = "DEBUG"
-path = "../index/logs"  # Directory for log files
-rotation = "daily"  # daily, weekly, or size
+# CHANGE THIS to your actual workspace path + "/index/logs"
+dir = "/path/to/your/workspace/indexao/index/logs"
+rotation_when = "midnight"  # midnight, weekly, size
+rotation_interval = 1
 backup_count = 7  # Keep 7 days of logs
 
 # Debug log file (TRACE and above, verbose)
@@ -165,7 +191,7 @@ backup_count = 3  # Keep fewer debug logs (they're verbose)
 [logging.json]
 enabled = false  # Enable for production log aggregation
 level = "DEBUG"
-path = "../index/logs"
+dir = "/path/to/your/workspace/indexao/index/logs"
 
 # Log format
 [logging.format]
@@ -187,7 +213,7 @@ slow_threshold_ms = 1000
 enabled = true
 
 # Cache directory
-path = "../index/cache"
+path = "/path/to/your/workspace/indexao/index/cache"
 
 # TTL for different cache types (in seconds)
 ocr_ttl = 604800      # 7 days

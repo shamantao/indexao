@@ -206,13 +206,20 @@ class LoggerManager:
         # Setup root logger
         self._setup_root_logger()
     
-    def _load_config(self):
-        """Load logging configuration from environment or defaults."""
+    def _load_config(self, log_dir: Optional[str] = None):
+        """Load logging configuration from environment or defaults.
+        
+        Args:
+            log_dir: Optional log directory path (overrides env var)
+        """
         # Get log level from environment
         log_level = os.getenv('INDEXAO_LOG_LEVEL', 'INFO').upper()
         
         # Get log directory
-        log_dir = os.getenv('INDEXAO_LOG_DIR', '../index/logs')
+        # Priority: 1. Parameter, 2. Env var, 3. Default 'logs'
+        if log_dir is None:
+            log_dir = os.getenv('INDEXAO_LOG_DIR', 'logs')
+        
         self._log_dir = Path(log_dir).expanduser().resolve()
         self._log_dir.mkdir(parents=True, exist_ok=True)
         
@@ -366,6 +373,38 @@ class LoggerManager:
             logging.getLogger(logger_name).setLevel(level_value)
         else:
             logging.getLogger('indexao').setLevel(level_value)
+    
+    def reconfigure(self, log_dir: str):
+        """
+        Reconfigure logger with new log directory.
+        
+        This is called after loading config.toml to use the correct paths.
+        
+        Args:
+            log_dir: New log directory path (can contain ${variables})
+        """
+        # Save current level
+        current_level = os.getenv('INDEXAO_LOG_LEVEL', 'INFO')
+        
+        # Update log directory
+        self._log_dir = Path(log_dir).expanduser().resolve()
+        self._log_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Remove all existing handlers
+        root_logger = logging.getLogger('indexao')
+        for handler in root_logger.handlers[:]:
+            handler.close()
+            root_logger.removeHandler(handler)
+        
+        # Reload config with new path
+        self._load_config(log_dir=str(self._log_dir))
+        
+        # Recreate handlers
+        self._setup_root_logger()
+        
+        # Log the change
+        logger = self.get_logger('indexao.logger')
+        logger.info(f"Logger reconfigured with log_dir: {self._log_dir}")
 
 
 # Global logger manager instance
@@ -408,6 +447,24 @@ def set_level(level: str, module: Optional[str] = None):
         >>> set_level('TRACE', 'indexao.scanner')  # Specific module
     """
     _manager.set_level(level, module)
+
+
+def reconfigure_logger(log_dir: str):
+    """
+    Reconfigure logger with new log directory from config.
+    
+    This should be called after loading config.toml.
+    
+    Args:
+        log_dir: New log directory path (resolved, can be from ${variables})
+    
+    Example:
+        >>> from indexao.logger import reconfigure_logger
+        >>> from indexao.config import load_config
+        >>> config = load_config()
+        >>> reconfigure_logger(config.logging.log_dir)
+    """
+    _manager.reconfigure(log_dir)
 
 
 # Convenience function for scripts

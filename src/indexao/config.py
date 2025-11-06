@@ -4,6 +4,12 @@ Configuration management for Indexao.
 Loads configuration from TOML files with environment variable overrides.
 Validates configuration and provides typed access to settings.
 
+Features:
+- TOML-based configuration with path variable expansion
+- Environment variable overrides (INDEXAO_*)
+- Path variables: ${var} syntax for reusable paths
+- Automatic path resolution and validation
+
 Usage:
     from indexao.config import load_config, get_config
     
@@ -21,15 +27,116 @@ Usage:
 """
 
 import os
+import re
 import tomllib
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
 from enum import Enum
 
-from indexao.logger import get_logger
+from indexao.logger import get_logger, reconfigure_logger
+from indexao.plugin_manager import PluginManager
 
 logger = get_logger(__name__)
+
+# Global configuration instance
+_config: Optional['Config'] = None
+_plugin_manager: Optional[PluginManager] = None
+
+
+# ============================================================================
+# PATH VARIABLE EXPANSION
+# ============================================================================
+
+def _expand_path_variables(value: Any, variables: Dict[str, str], max_depth: int = 10) -> Any:
+    """
+    Expand ${var} syntax in configuration values recursively.
+    
+    Args:
+        value: Value to expand (str, dict, list, or other)
+        variables: Dictionary of variable names to values
+        max_depth: Maximum recursion depth to prevent infinite loops
+    
+    Returns:
+        Expanded value
+    
+    Examples:
+        >>> vars = {"home": "/Users/phil", "workspace": "${home}/projects"}
+        >>> _expand_path_variables("${workspace}/data", vars)
+        '/Users/phil/projects/data'
+    """
+    if max_depth <= 0:
+        raise ValueError("Maximum recursion depth reached in path variable expansion")
+    
+    # String: expand ${var} references
+    if isinstance(value, str):
+        # Pattern: ${variable_name}
+        pattern = r'\$\{([^}]+)\}'
+        
+        def replace_var(match):
+            var_name = match.group(1)
+            if var_name not in variables:
+                logger.warning(f"Unknown variable: ${{{var_name}}}")
+                return match.group(0)  # Return unchanged
+            
+            var_value = variables[var_name]
+            # Recursively expand if variable value contains other variables
+            if isinstance(var_value, str) and '${' in var_value:
+                return _expand_path_variables(var_value, variables, max_depth - 1)
+            return str(var_value)
+        
+        return re.sub(pattern, replace_var, value)
+    
+    # Dictionary: expand all values
+    elif isinstance(value, dict):
+        return {k: _expand_path_variables(v, variables, max_depth) for k, v in value.items()}
+    
+    # List: expand all items
+    elif isinstance(value, list):
+        return [_expand_path_variables(item, variables, max_depth) for item in value]
+    
+    # Other types: return unchanged
+    else:
+        return value
+
+
+def _extract_path_variables(config_dict: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Extract path variables from [paths.variables] section.
+    
+    Args:
+        config_dict: Configuration dictionary from TOML
+    
+    Returns:
+        Dictionary of variable names to expanded values
+    
+    Example:
+        Config TOML:
+        [paths.variables]
+        home = "/Users/phil"
+        workspace = "${home}/projects"
+        
+        Returns:
+        {"home": "/Users/phil", "workspace": "/Users/phil/projects"}
+    """
+    variables_section = config_dict.get("paths", {}).get("variables", {})
+    
+    if not variables_section:
+        return {}
+    
+    # First pass: collect raw variables
+    variables = dict(variables_section)
+    
+    # Second pass: expand variables that reference other variables
+    # Sort by dependency (variables without ${} first)
+    sorted_vars = sorted(variables.items(), key=lambda x: '${' in str(x[1]))
+    
+    expanded = {}
+    for name, value in sorted_vars:
+        expanded[name] = _expand_path_variables(value, expanded)
+    
+    logger.debug(f"Loaded {len(expanded)} path variables")
+    return expanded
 
 
 class LogLevel(str, Enum):
@@ -120,6 +227,11 @@ class Config:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     paths: PathAdapterConfig = field(default_factory=PathAdapterConfig)
     plugins: PluginsConfig = field(default_factory=PluginsConfig)
+    
+    # Root directories for data storage
+    index_root: str = "index"  # Where indexed data, cache, logs are stored
+    sources_root: str = "_sources"  # Where plugins and models are stored
+    volumes_root: str = "_Volumes"  # Where user volumes and test data are located
     
     # Additional sections
     input_dir: str = "input"
@@ -361,10 +473,16 @@ def _dict_to_config(config_dict: Dict[str, Any]) -> Config:
         search=search_config
     )
     
+    # Extract paths section for root directories
+    paths_section = config_dict.get("paths", {})
+    
     return Config(
         logging=logging_config,
         paths=paths_config,
         plugins=plugins_config,
+        index_root=paths_section.get("index_root", "index"),
+        sources_root=paths_section.get("sources_root", "_sources"),
+        volumes_root=paths_section.get("volumes_root", "_Volumes"),
         input_dir=config_dict.get("input_dir", "input"),
         output_dir=config_dict.get("output_dir", "output"),
         temp_dir=config_dict.get("temp_dir", "temp")
@@ -390,7 +508,7 @@ def load_config(config_path: Optional[str] = None) -> Config:
         >>> config = load_config("custom_config.toml")
         >>> config = load_config()  # Uses INDEXAO_CONFIG env var
     """
-    global _config
+    global _config, _plugin_manager
     
     # Find config file
     path = _find_config_file(Path(config_path) if config_path else None)
@@ -405,6 +523,16 @@ def load_config(config_path: Optional[str] = None) -> Config:
         logger.error(f"Failed to parse TOML: {e}")
         raise ValueError(f"Invalid TOML configuration: {e}")
     
+    # Extract and expand path variables
+    try:
+        path_variables = _extract_path_variables(config_dict)
+        if path_variables:
+            logger.debug(f"Expanding path variables: {list(path_variables.keys())}")
+            config_dict = _expand_path_variables(config_dict, path_variables)
+    except Exception as e:
+        logger.error(f"Failed to expand path variables: {e}")
+        raise ValueError(f"Path variable expansion failed: {e}")
+    
     # Apply environment overrides
     config_dict = _apply_env_overrides(config_dict)
     
@@ -412,10 +540,26 @@ def load_config(config_path: Optional[str] = None) -> Config:
     try:
         _config = _dict_to_config(config_dict)
         logger.info(f"Configuration loaded: {_config}")
-        return _config
     except Exception as e:
         logger.error(f"Failed to build config: {e}")
         raise ValueError(f"Configuration validation failed: {e}")
+    
+    # Reconfigure logger with correct log directory from config
+    try:
+        reconfigure_logger(_config.logging.log_dir)
+        logger.info(f"Logger reconfigured to: {_config.logging.log_dir}")
+    except Exception as e:
+        logger.warning(f"Failed to reconfigure logger: {e}")
+    
+    # Initialize Plugin Manager with full config dict (includes plugins section)
+    try:
+        _plugin_manager = PluginManager(config=config_dict)
+        logger.info("Plugin Manager initialized")
+    except Exception as e:
+        logger.warning(f"Plugin Manager initialization failed: {e}")
+        _plugin_manager = None
+    
+    return _config
 
 
 def get_config() -> Config:
@@ -447,6 +591,27 @@ def reload_config(config_path: Optional[str] = None) -> Config:
     Returns:
         Reloaded Config object
     """
-    global _config
+    global _config, _plugin_manager
     _config = None
+    _plugin_manager = None
     return load_config(config_path)
+
+
+def get_plugin_manager() -> PluginManager:
+    """
+    Get Plugin Manager instance.
+    
+    Returns:
+        PluginManager instance initialized with config
+    
+    Raises:
+        RuntimeError: If config not yet loaded
+    
+    Example:
+        >>> manager = get_plugin_manager()
+        >>> manager.switch('ocr', 'tesseract')
+        >>> ocr = manager.get_active('ocr')
+    """
+    if _plugin_manager is None:
+        raise RuntimeError("Plugin Manager not initialized. Call load_config() first.")
+    return _plugin_manager
