@@ -40,6 +40,11 @@ webui = [
     "jinja2>=3.1.0",
     "python-multipart>=0.0.6",
 ]
+ocr = [
+    "pytesseract>=0.3.10",
+    "pdf2image>=1.16.3",
+    "Pillow>=10.0.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/example/indexao"
