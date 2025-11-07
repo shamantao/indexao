@@ -51,7 +51,7 @@
                     <input 
                         type="text" 
                         id="searchQuery" 
-                        placeholder="Entrez votre recherche..."
+                        placeholder="🔍 Recherche multilingue : français, anglais, 中文..."
                         class="search-input"
                         autofocus
                     >
@@ -64,24 +64,29 @@
                 <div class="search-filters">
                     <div class="filter-group">
                         <label>
-                            <input type="checkbox" id="searchContent" checked>
-                            Contenu
+                            <i class="fas fa-language"></i>
+                            Langue :
                         </label>
-                        <label>
-                            <input type="checkbox" id="searchTranslations" checked>
-                            Traductions
-                        </label>
-                        <label>
-                            <input type="checkbox" id="searchFilenames">
-                            Noms de fichiers
-                        </label>
+                        <select id="searchLanguage" class="filter-select">
+                            <option value="">Toutes les langues</option>
+                            <option value="fr">🇫🇷 Français</option>
+                            <option value="en">🇬🇧 English</option>
+                            <option value="zh-TW">🇹🇼 中文 (繁體)</option>
+                        </select>
                     </div>
                     
-                    <select id="searchStatus" class="filter-select">
-                        <option value="">Tous les statuts</option>
-                        <option value="completed" selected>Complétés uniquement</option>
-                        <option value="failed">Échoués</option>
-                    </select>
+                    <div class="filter-group">
+                        <label>
+                            <i class="fas fa-list-ol"></i>
+                            Limite :
+                        </label>
+                        <select id="searchLimit" class="filter-select">
+                            <option value="10">10 résultats</option>
+                            <option value="25" selected>25 résultats</option>
+                            <option value="50">50 résultats</option>
+                            <option value="100">100 résultats</option>
+                        </select>
+                    </div>
                 </div>
             </form>
         </div>
@@ -109,40 +114,34 @@
         <div class="card">
             <h2>
                 <i class="fas fa-lightbulb"></i>
-                Examples
+                Exemples de recherche
             </h2>
             <div class="examples-grid">
-                <div class="example-item" onclick="searchExample('database')">
-                    <i class="fas fa-database"></i>
-                    <span>database</span>
+                <div class="example-item" onclick="searchExample('facture')">
+                    <span>🇫🇷 facture</span>
                 </div>
-                <div class="example-item" onclick="searchExample('test')">
-                    <i class="fas fa-vial"></i>
-                    <span>test</span>
+                <div class="example-item" onclick="searchExample('invoice')">
+                    <span>🇬🇧 invoice</span>
                 </div>
-                <div class="example-item" onclick="searchExample('document')">
-                    <i class="fas fa-file-alt"></i>
-                    <span>document</span>
+                <div class="example-item" onclick="searchExample('合約')">
+                    <span>🇹🇼 合約 (contrat)</span>
                 </div>
-                <div class="example-item" onclick="searchExample('Sprint')">
-                    <i class="fas fa-running"></i>
-                    <span>Sprint</span>
+                <div class="example-item" onclick="searchExample('PDF')">
+                    <span>📄 PDF</span>
                 </div>
             </div>
-        </div>
-    </div>
-    
-    <!-- Document Detail Modal (reuse from documents page) -->
-    <div id="modal" class="modal" onclick="closeModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3 id="modalTitle">Document Details</h3>
-                <button onclick="closeModal()" class="modal-close">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body" id="modalBody">
-                <!-- Content loaded dynamically -->
+            
+            <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+                <h4 style="margin: 0 0 0.5rem 0;">
+                    <i class="fas fa-info-circle"></i>
+                    Aide à la recherche
+                </h4>
+                <ul style="margin: 0; padding-left: 1.5rem;">
+                    <li>Recherche <strong>multilingue native</strong> : tapez en français, anglais ou chinois</li>
+                    <li>Meilisearch gère automatiquement les <strong>fautes de frappe</strong></li>
+                    <li>Le chinois traditionnel supporte la <strong>segmentation native</strong></li>
+                    <li>Utilisez les filtres pour cibler une langue spécifique</li>
+                </ul>
             </div>
         </div>
     </div>
@@ -151,6 +150,6 @@
         <p>Indexao v0.1.0 - Document Indexing System | Built with FastAPI</p>
     </footer>
     
-    <script src="/static/js/search.js?v=1.0.2"></script>
+    <script src="/static/js/search.js?v=1.0.3"></script>
 </body>
 </html>

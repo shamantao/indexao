@@ -25,47 +25,25 @@ function performSearch(event) {
 
 async function searchDocuments(query) {
     try {
-        const status = document.getElementById('searchStatus').value;
-        const searchContent = document.getElementById('searchContent').checked;
-        const searchTranslations = document.getElementById('searchTranslations').checked;
-        const searchFilenames = document.getElementById('searchFilenames').checked;
+        const language = document.getElementById('searchLanguage') ? document.getElementById('searchLanguage').value : '';
+        const limit = document.getElementById('searchLimit') ? parseInt(document.getElementById('searchLimit').value) : 25;
         
-        // Get all documents (in real implementation, this would be a search API)
-        const url = status 
-            ? `/api/documents?status=${status}&limit=100`
-            : '/api/documents?limit=100';
-        
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            // Filter documents client-side (mock search)
-            const queryLower = query.toLowerCase();
-            const results = data.documents.filter(doc => {
-                let match = false;
-                
-                // Search in content
-                if (searchContent && doc.content_preview) {
-                    match = match || doc.content_preview.toLowerCase().includes(queryLower);
-                }
-                
-                // Search in translations
-                if (searchTranslations && doc.translations) {
-                    for (const text of Object.values(doc.translations)) {
-                        match = match || text.toLowerCase().includes(queryLower);
-                    }
-                }
-                
-                // Search in filename
-                if (searchFilenames && doc.title) {
-                    match = match || doc.title.toLowerCase().includes(queryLower);
-                }
-                
-                return match;
-            });
-            
-            displayResults(results, query);
+        // Build query parameters
+        const params = new URLSearchParams({ query, limit });
+        if (language) {
+            params.append('language', language);
         }
+        
+        // Call real Meilisearch API
+        const response = await fetch(`/api/search?${params.toString()}`);
+        
+        if (!response.ok) {
+            throw new Error(`Search failed: ${response.statusText}`);
+        }
+        
+        const results = await response.json();
+        
+        displayResults(results, query);
     } catch (error) {
         const searchResults = document.getElementById('searchResults');
         searchResults.innerHTML = `
@@ -95,43 +73,86 @@ function displayResults(results, query) {
     
     searchResults = results;
     
-    resultsDiv.innerHTML = results.map(doc => `
-        <div class="search-result-item" onclick="showDocumentDetails('${doc.doc_id}')">
-            <div class="result-header">
-                <div class="result-title">
-                    <i class="fas ${getFileIcon(doc.metadata?.mime_type)}"></i>
-                    <span>${highlightText(doc.title || doc.doc_id, query)}</span>
+    // Render Meilisearch results
+    resultsDiv.innerHTML = results.map(doc => {
+        // Get language flag
+        const langFlag = doc.language === 'fr' ? '🇫🇷' : 
+                        doc.language === 'en' ? '🇬🇧' : 
+                        doc.language === 'zh-TW' ? '🇹🇼' : '🌍';
+        
+        // Format score (Meilisearch uses 0-1 scale)
+        const score = doc._score ? `${(doc._score * 100).toFixed(0)}%` : 'N/A';
+        
+        // Extract metadata
+        const metadata = doc.metadata || {};
+        const contentPreview = doc.content ? doc.content.substring(0, 200) + '...' : 'Aucun contenu';
+        
+        return `
+            <div class="search-result-item" onclick="viewDocument('${doc.doc_id}')">
+                <div class="result-header">
+                    <div class="result-title">
+                        ${langFlag}
+                        <i class="fas ${getFileIcon(metadata.mime_type)}"></i>
+                        <span>${highlightText(doc.title || doc.doc_id, query)}</span>
+                    </div>
+                    <span class="result-score" title="Score de pertinence">${score}</span>
                 </div>
-                ${getStatusBadge(doc.status)}
-            </div>
-            
-            <div class="result-preview">
-                ${highlightText(doc.content_preview || 'Aucun contenu', query)}
-            </div>
-            
-            ${doc.translations && Object.keys(doc.translations).length > 0 ? `
-                <div class="result-translations">
-                    <i class="fas fa-language"></i>
-                    ${Object.entries(doc.translations).map(([lang, text]) => {
-                        const preview = text.substring(0, 100);
-                        return `<div><strong>${lang.toUpperCase()}:</strong> ${highlightText(preview, query)}${text.length > 100 ? '...' : ''}</div>`;
-                    }).join('')}
+                
+                <div class="result-preview">
+                    ${highlightText(contentPreview, query)}
                 </div>
-            ` : ''}
-            
-            <div class="result-meta">
-                <span>
-                    <i class="fas fa-calendar"></i>
-                    ${formatDate(doc.created_at)}
-                </span>
-                <span>
-                    <i class="fas fa-file-alt"></i>
-                    ${doc.metadata?.file_size ? formatBytes(doc.metadata.file_size) : 'N/A'}
-                </span>
-                ${doc.indexed ? '<span class="badge badge-success"><i class="fas fa-check"></i> Indexé</span>' : ''}
+                
+                <div class="result-meta">
+                    <span>
+                        <i class="fas fa-file-alt"></i>
+                        ${metadata.file_extension || 'N/A'}
+                    </span>
+                    <span>
+                        <i class="fas fa-hdd"></i>
+                        ${metadata.file_size ? formatBytes(metadata.file_size) : 'N/A'}
+                    </span>
+                    ${metadata.pages ? `
+                        <span>
+                            <i class="fas fa-file-pdf"></i>
+                            ${metadata.pages} page${metadata.pages > 1 ? 's' : ''}
+                        </span>
+                    ` : ''}
+                    ${metadata.ocr_confidence ? `
+                        <span title="Confiance OCR">
+                            <i class="fas fa-eye"></i>
+                            ${(metadata.ocr_confidence * 100).toFixed(0)}%
+                        </span>
+                    ` : ''}
+                    <button onclick="event.stopPropagation(); copyDocumentText('${doc.doc_id}')" 
+                            class="btn-sm btn-secondary" 
+                            title="Copier le texte">
+                        <i class="fas fa-copy"></i> Copier
+                    </button>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+}
+
+// Copy document text to clipboard
+async function copyDocumentText(docId) {
+    try {
+        const response = await fetch(`/api/search/document/${docId}`);
+        const doc = await response.json();
+        
+        await navigator.clipboard.writeText(doc.content || '');
+        
+        // Visual feedback
+        alert('✅ Texte copié dans le presse-papier');
+    } catch (error) {
+        console.error('Failed to copy:', error);
+        alert('❌ Erreur lors de la copie');
+    }
+}
+
+// View document details
+function viewDocument(docId) {
+    window.location.href = `/documents?id=${docId}`;
 }
 
 function highlightText(text, query) {
@@ -184,100 +205,4 @@ function formatBytes(bytes) {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-}
-
-function formatDate(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('fr-FR', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-// Document details modal (reuse from documents.js)
-async function showDocumentDetails(docId) {
-    try {
-        const response = await fetch(`/api/documents/${docId}`);
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            const doc = data.document;
-            
-            document.getElementById('modalTitle').innerHTML = `
-                <i class="fas ${getFileIcon(doc.metadata?.mime_type)}"></i>
-                ${doc.title || doc.doc_id}
-            `;
-            
-            const modalBody = document.getElementById('modalBody');
-            modalBody.innerHTML = `
-                <div style="margin-bottom: 1rem;">
-                    ${getStatusBadge(doc.status)}
-                </div>
-                
-                <div class="detail-section">
-                    <h4><i class="fas fa-info-circle"></i> Informations</h4>
-                    <table class="detail-table">
-                        <tr>
-                            <td>Document ID</td>
-                            <td><code>${doc.doc_id}</code></td>
-                        </tr>
-                        <tr>
-                            <td>Fichier</td>
-                            <td>${doc.metadata?.filename || 'N/A'}</td>
-                        </tr>
-                        <tr>
-                            <td>Type MIME</td>
-                            <td>${doc.metadata?.mime_type || 'N/A'}</td>
-                        </tr>
-                        <tr>
-                            <td>Taille</td>
-                            <td>${doc.metadata?.file_size ? formatBytes(doc.metadata.file_size) : 'N/A'}</td>
-                        </tr>
-                        <tr>
-                            <td>Créé le</td>
-                            <td>${formatDate(doc.created_at)}</td>
-                        </tr>
-                        <tr>
-                            <td>Indexé</td>
-                            <td>${doc.indexed ? `<span class="badge badge-success"><i class="fas fa-check"></i> Oui (${doc.search_engine})</span>` : '<span class="badge badge-secondary">Non</span>'}</td>
-                        </tr>
-                    </table>
-                </div>
-                
-                <div class="detail-section">
-                    <h4><i class="fas fa-align-left"></i> Contenu</h4>
-                    <div class="content-box">
-                        ${doc.content || 'Aucun contenu'}
-                    </div>
-                </div>
-                
-                ${doc.translations && Object.keys(doc.translations).length > 0 ? `
-                    <div class="detail-section">
-                        <h4><i class="fas fa-language"></i> Traductions</h4>
-                        ${Object.entries(doc.translations).map(([lang, text]) => `
-                            <div style="margin-bottom: 1rem;">
-                                <strong style="color: var(--accent-primary);">${lang.toUpperCase()}:</strong>
-                                <div class="content-box" style="margin-top: 0.5rem;">
-                                    ${text}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-            `;
-            
-            document.getElementById('modal').style.display = 'flex';
-        }
-    } catch (error) {
-        console.error('Failed to load document details:', error);
-    }
-}
-
-function closeModal(event) {
-    if (!event || event.target.id === 'modal') {
-        document.getElementById('modal').style.display = 'none';
-    }
 }

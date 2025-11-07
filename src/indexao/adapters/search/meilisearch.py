@@ -115,6 +115,11 @@ class MeilisearchAdapter:
                 "twoTypos": 9
             }
         })
+        
+        # Support multilingue (FR, EN, ZH-TW)
+        # Meilisearch détecte automatiquement le chinois et applique la segmentation
+        # Pas besoin de configuration spéciale pour ZH-TW
+        # Référence: https://www.meilisearch.com/docs/learn/what_is_meilisearch/language
     
     @property
     def name(self) -> str:

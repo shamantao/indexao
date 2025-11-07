@@ -57,6 +57,14 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # Include plugin routes
 app.include_router(plugin_router)
 
+# Include pipeline routes
+from indexao.pipeline.routes import router as pipeline_router
+app.include_router(pipeline_router)
+
+# Include search routes
+from indexao.search_routes import router as search_router
+app.include_router(search_router)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -89,6 +97,27 @@ async def startup_event():
             logger.info("✓ Mock adapters loaded")
         except Exception as e:
             logger.warning(f"Failed to load mock adapters: {e}")
+        
+        # Initialize pipeline with real adapters (MVP: Tesseract + Meilisearch)
+        try:
+            from indexao.pipeline.routes import initialize_processor
+            initialize_processor(use_real_adapters=True)
+            logger.info("✓ Pipeline processor initialized (Tesseract + Meilisearch)")
+        except Exception as e:
+            logger.warning(f"Failed to initialize pipeline: {e}")
+        
+        # Initialize search adapter
+        try:
+            from indexao.search_routes import initialize_search_adapter
+            config = get_config()
+            initialize_search_adapter(
+                host=f"http://{config.plugins.search.host}:{config.plugins.search.port}",
+                api_key=config.plugins.search.api_key,
+                index_name=config.plugins.search.index_name
+            )
+            logger.info("✓ Search API initialized (Meilisearch)")
+        except Exception as e:
+            logger.warning(f"Failed to initialize search API: {e}")
         
         logger.info("✓ Web UI ready")
     except Exception as e:
