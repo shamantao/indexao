@@ -27,6 +27,8 @@ from indexao.scanner import FileScanner, scan_directory
 from indexao.processor import DocumentProcessor, ProcessingStatus
 from indexao.database import DocumentDatabase
 from indexao.models.document import ProcessingStatus as DocStatus
+from indexao.plugin_manager import PluginManager
+from indexao.plugin_routes import router as plugin_router, set_plugin_manager
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -52,6 +54,9 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 # Mount static files (CSS, JS, images)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+# Include plugin routes
+app.include_router(plugin_router)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -71,6 +76,19 @@ async def startup_event():
         
         # Initialize document processor
         app.state.processor = DocumentProcessor(config, app.state.upload_handler)
+        
+        # Initialize plugin manager (empty config for now, will read from TOML later)
+        app.state.plugin_manager = PluginManager({})
+        set_plugin_manager(app.state.plugin_manager)
+        
+        # Auto-load mock adapters for initial state
+        try:
+            app.state.plugin_manager.load_adapter('ocr', 'mock', auto_register=True, fallback_to_mock=False)
+            app.state.plugin_manager.load_adapter('translator', 'mock', auto_register=True, fallback_to_mock=False)
+            app.state.plugin_manager.load_adapter('search', 'mock', auto_register=True, fallback_to_mock=False)
+            logger.info("✓ Mock adapters loaded")
+        except Exception as e:
+            logger.warning(f"Failed to load mock adapters: {e}")
         
         logger.info("✓ Web UI ready")
     except Exception as e:

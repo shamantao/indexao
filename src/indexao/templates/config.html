@@ -140,6 +140,63 @@
                 </div>
             </div>
             
+            <!-- Plugin Switcher (Runtime) -->
+            <div class="card">
+                <h2>
+                    <i class="fas fa-exchange-alt"></i>
+                    Plugin Switcher (Hot-Swap)
+                </h2>
+                <p class="config-help">
+                    <i class="fas fa-info-circle"></i>
+                    Switch between adapters without restarting the server. Changes take effect immediately.
+                </p>
+                
+                <!-- OCR Switcher -->
+                <div class="switcher-section">
+                    <h3><i class="fas fa-eye"></i> OCR Engine</h3>
+                    <div class="switcher-controls">
+                        <select id="ocr-selector" class="adapter-selector">
+                            <option value="">Loading...</option>
+                        </select>
+                        <button onclick="switchAdapter('ocr')" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i>
+                            Switch OCR
+                        </button>
+                        <span id="ocr-status" class="switcher-status"></span>
+                    </div>
+                </div>
+                
+                <!-- Translator Switcher -->
+                <div class="switcher-section">
+                    <h3><i class="fas fa-language"></i> Translator Engine</h3>
+                    <div class="switcher-controls">
+                        <select id="translator-selector" class="adapter-selector">
+                            <option value="">Loading...</option>
+                        </select>
+                        <button onclick="switchAdapter('translator')" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i>
+                            Switch Translator
+                        </button>
+                        <span id="translator-status" class="switcher-status"></span>
+                    </div>
+                </div>
+                
+                <!-- Search Switcher -->
+                <div class="switcher-section">
+                    <h3><i class="fas fa-search"></i> Search Engine</h3>
+                    <div class="switcher-controls">
+                        <select id="search-selector" class="adapter-selector">
+                            <option value="">Loading...</option>
+                        </select>
+                        <button onclick="switchAdapter('search')" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i>
+                            Switch Search
+                        </button>
+                        <span id="search-status" class="switcher-status"></span>
+                    </div>
+                </div>
+            </div>
+            
             <!-- OCR Plugin -->
             <div class="card">
                 <h2>
@@ -245,5 +302,103 @@
             <p>Indexao v0.1.0 - Sprint 0 Configuration Viewer</p>
         </footer>
     </div>
+    
+    <!-- Plugin Switcher JavaScript -->
+    <script>
+        // Load available plugins and active adapters on page load
+        async function loadPluginData() {
+            try {
+                // Load available plugins for each type
+                const types = ['ocr', 'translator', 'search'];
+                
+                for (const type of types) {
+                    // Get available plugins
+                    const pluginsResp = await fetch(`/api/plugins?adapter_type=${type}`);
+                    const plugins = await pluginsResp.json();
+                    
+                    // Get active adapter
+                    const activeResp = await fetch(`/api/plugins/${type}/active`);
+                    const active = await activeResp.json();
+                    
+                    // Populate selector
+                    const selector = document.getElementById(`${type}-selector`);
+                    selector.innerHTML = '';
+                    
+                    plugins.forEach(plugin => {
+                        const option = document.createElement('option');
+                        option.value = plugin.name;
+                        option.textContent = `${plugin.name} (v${plugin.version})`;
+                        if (plugin.name === active.name) {
+                            option.selected = true;
+                        }
+                        selector.appendChild(option);
+                    });
+                    
+                    // Update status
+                    const status = document.getElementById(`${type}-status`);
+                    if (active.name) {
+                        status.innerHTML = `<span class="badge badge-success"><i class="fas fa-check-circle"></i> Active: ${active.name}</span>`;
+                    } else {
+                        status.innerHTML = `<span class="badge badge-false"><i class="fas fa-times-circle"></i> None active</span>`;
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load plugin data:', error);
+                alert('Failed to load plugin data. Check console for details.');
+            }
+        }
+        
+        // Switch adapter
+        async function switchAdapter(type) {
+            const selector = document.getElementById(`${type}-selector`);
+            const adapterName = selector.value;
+            const status = document.getElementById(`${type}-status`);
+            
+            if (!adapterName) {
+                alert('Please select an adapter');
+                return;
+            }
+            
+            try {
+                // Show loading
+                status.innerHTML = `<span class="badge badge-info"><i class="fas fa-spinner fa-spin"></i> Switching...</span>`;
+                
+                // Call API
+                const resp = await fetch('/api/plugins/switch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        adapter_type: type,
+                        adapter_name: adapterName
+                    })
+                });
+                
+                if (!resp.ok) {
+                    const error = await resp.json();
+                    throw new Error(error.detail || 'Failed to switch adapter');
+                }
+                
+                const result = await resp.json();
+                
+                // Show success
+                status.innerHTML = `<span class="badge badge-success"><i class="fas fa-check-circle"></i> Switched to ${adapterName}</span>`;
+                
+                // Reload after 1 second
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Switch failed:', error);
+                status.innerHTML = `<span class="badge badge-false"><i class="fas fa-times-circle"></i> Failed: ${error.message}</span>`;
+            }
+        }
+        
+        // Load on page ready
+        document.addEventListener('DOMContentLoaded', loadPluginData);
+    </script>
 </body>
 </html>
+

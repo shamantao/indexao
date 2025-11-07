@@ -973,3 +973,137 @@ footer {
         grid-template-columns: 1fr;
     }
 }
+
+/* ============================================
+   PLUGIN SWITCHER STYLES
+   ============================================ */
+
+.config-help {
+    background: rgba(52, 152, 219, 0.1);
+    border-left: 4px solid var(--accent-primary);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.config-help i {
+    color: var(--accent-primary);
+    margin-right: 0.5rem;
+}
+
+.switcher-section {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.switcher-section:last-child {
+    margin-bottom: 0;
+}
+
+.switcher-section h3 {
+    color: var(--text-primary);
+    font-size: 1.1em;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.switcher-section h3 i {
+    color: var(--accent-primary);
+}
+
+.switcher-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.adapter-selector {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.6rem 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.adapter-selector:hover {
+    border-color: var(--accent-primary);
+}
+
+.adapter-selector:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.btn {
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--accent-primary), #2980b9);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #2980b9, var(--accent-primary));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.switcher-status {
+    min-width: 150px;
+    font-size: 0.9em;
+}
+
+.badge-success {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    border: 1px solid #2ecc71;
+}
+
+@media (max-width: 768px) {
+    .switcher-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .adapter-selector {
+        min-width: 100%;
+    }
+    
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .switcher-status {
+        text-align: center;
+    }
+}
+
