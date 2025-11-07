@@ -510,15 +510,20 @@ def load_config(config_path: Optional[str] = None) -> Config:
     """
     global _config, _plugin_manager
     
+    # Check if logs should be suppressed
+    suppress_logs = os.getenv('INDEXAO_SUPPRESS_LOGS', '').lower() == '1'
+    
     # Find config file
     path = _find_config_file(Path(config_path) if config_path else None)
-    logger.info(f"Loading configuration from: {path}")
+    if not suppress_logs:
+        logger.info(f"Loading configuration from: {path}")
     
     # Load TOML
     try:
         with open(path, "rb") as f:
             config_dict = tomllib.load(f)
-        logger.debug(f"Loaded {len(config_dict)} top-level sections")
+        if not suppress_logs:
+            logger.debug(f"Loaded {len(config_dict)} top-level sections")
     except Exception as e:
         logger.error(f"Failed to parse TOML: {e}")
         raise ValueError(f"Invalid TOML configuration: {e}")
@@ -527,7 +532,8 @@ def load_config(config_path: Optional[str] = None) -> Config:
     try:
         path_variables = _extract_path_variables(config_dict)
         if path_variables:
-            logger.debug(f"Expanding path variables: {list(path_variables.keys())}")
+            if not suppress_logs:
+                logger.debug(f"Expanding path variables: {list(path_variables.keys())}")
             config_dict = _expand_path_variables(config_dict, path_variables)
     except Exception as e:
         logger.error(f"Failed to expand path variables: {e}")
@@ -539,7 +545,8 @@ def load_config(config_path: Optional[str] = None) -> Config:
     # Convert to Config object
     try:
         _config = _dict_to_config(config_dict)
-        logger.info(f"Configuration loaded: {_config}")
+        if not suppress_logs:
+            logger.info(f"Configuration loaded: {_config}")
     except Exception as e:
         logger.error(f"Failed to build config: {e}")
         raise ValueError(f"Configuration validation failed: {e}")
@@ -547,14 +554,16 @@ def load_config(config_path: Optional[str] = None) -> Config:
     # Reconfigure logger with correct log directory from config
     try:
         reconfigure_logger(_config.logging.log_dir)
-        logger.info(f"Logger reconfigured to: {_config.logging.log_dir}")
+        if not suppress_logs:
+            logger.info(f"Logger reconfigured to: {_config.logging.log_dir}")
     except Exception as e:
         logger.warning(f"Failed to reconfigure logger: {e}")
     
     # Initialize Plugin Manager with full config dict (includes plugins section)
     try:
         _plugin_manager = PluginManager(config=config_dict)
-        logger.info("Plugin Manager initialized")
+        if not suppress_logs:
+            logger.info("Plugin Manager initialized")
     except Exception as e:
         logger.warning(f"Plugin Manager initialization failed: {e}")
         _plugin_manager = None

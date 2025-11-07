@@ -4,32 +4,34 @@
 
 Indexao is a modular, user-centric tool to index arbitrary file trees and enable unified multilingual search, full translated visualization (keeping structure), and export to JSON/Markdown.
 
-**Current Status**: Sprint 1 Complete ✅ - Full UI with mock adapters  
-**Version**: 0.2.0-dev  
-**Next**: Sprint 1.2 (Cleanup) → Sprint 2 (Plugin Manager) → Sprint 3 (Real Adapters → MVP)
+**Current Status**: Sprint 2 Complete ✅ - Plugin Manager with Dynamic Loading & UI  
+**Version**: 0.3.0-dev  
+**Next**: Sprint 3 (Real Adapters → MVP TESTABLE)
 
 ---
 
 ## 🎯 Features
 
-### Current (Sprint 0-1 Complete)
+### Current (Sprint 0-2 Complete)
 
-- ✅ **Web UI**: Upload, Documents, Search pages with dark mode
+- ✅ **Web UI**: Upload, Documents, Search, Config pages with dark mode
+- ✅ **Plugin Switcher UI**: Runtime adapter hot-swap in /config page
 - ✅ **Upload Progress**: Animated 5-stage pipeline visualization
 - ✅ **Document Management**: List with statistics, pagination, filtering, modals
 - ✅ **Search Interface**: Full-text search with query highlighting
+- ✅ **Plugin Manager**: Dynamic adapter loading, discovery, and hot-swap
+- ✅ **REST API**: 7 endpoints for plugin management (/api/plugins/\*)
 - ✅ **Mock Adapters**: OCR, Translation, Search (for development/testing)
 - ✅ **Database**: SQLite with document model and metadata storage
 - ✅ **API Management**: Start/stop/reload script with health checks
-- ✅ **Configuration**: TOML-based plugin configuration
+- ✅ **Configuration**: TOML-based plugin configuration with path variables
 
-### Planned (Sprint 2-3)
+### Planned (Sprint 3)
 
-- ⏳ **Plugin Manager**: Dynamic adapter loading and hot-swap
 - ⏳ **Tesseract OCR**: Real text extraction (100+ languages)
 - ⏳ **Argos Translate**: Offline neural translation
 - ⏳ **Meilisearch**: Production search engine with typo-tolerance
-- ⏳ **MVP**: Testable by humans (end of Sprint 3, ~2025-11-25)
+- ⏳ **MVP**: Testable by humans (end of Sprint 3, ~2025-11-14)
 
 ### Core Capabilities (Target)
 
@@ -167,6 +169,30 @@ adapter = "mock"  # Will be "meilisearch" in Sprint 3
 
 ## 📖 API Usage
 
+### Plugin Management (Sprint 2)
+
+```bash
+# List all available plugins
+curl http://127.0.0.1:8000/api/plugins
+
+# List plugins by type
+curl http://127.0.0.1:8000/api/plugins?adapter_type=ocr
+
+# Get active adapters
+curl http://127.0.0.1:8000/api/plugins/active
+
+# Get active adapter for specific type
+curl http://127.0.0.1:8000/api/plugins/ocr/active
+
+# Switch adapter (hot-swap without restart)
+curl -X POST http://127.0.0.1:8000/api/plugins/switch \
+  -H "Content-Type: application/json" \
+  -d '{"adapter_type": "ocr", "adapter_name": "tesseract"}'
+
+# Get switch history
+curl http://127.0.0.1:8000/api/plugins/history
+```
+
 ### Upload File
 
 ```bash
@@ -299,26 +325,73 @@ Benefits:
 - 📦 **Portable**: Single binary distribution (15 MB)
 - 🔌 **Modular**: Swap any component without code changes
 
-For detailed architecture, see [`arch-tech.md`](./arch-tech.md).
+For detailed architecture, see [`arch-tech.md`](./mkdoc/arch-tech.md).
 
 ## 🧪 Testing
 
+### Run Tests
+
 ```bash
-# Run all tests
-make test
+# Run all unit tests
+python tests/test_plugin_discovery_standalone.py
+python tests/test_load_adapter_standalone.py
 
-# Run specific test suite
-pytest tests/test_indexing.py
-
-# Run end-to-end tests
-pytest tests/e2e/
+# Run with pytest (if installed)
+pytest tests/ -v
 ```
+
+### Test Plugin Switcher UI
+
+**Quick Test Procedure** (Sprint 2 Feature):
+
+1. **Start the server**:
+
+   ```bash
+   ./ci/indexao-api.sh start
+   # Or manually: uvicorn indexao.webui:app --reload
+   ```
+
+2. **Open the Config page**:
+
+   - Navigate to: http://127.0.0.1:8000/config
+   - Or via Nginx: http://indexao.localhost/config
+
+3. **Test Plugin Switcher**:
+
+   - Scroll to "Plugin Switcher (Hot-Swap)" section
+   - See 3 dropdowns: OCR, Translator, Search
+   - Each dropdown shows available plugins (currently: mock)
+   - Status shows current active adapter
+   - Click "Switch OCR" button to test hot-swap
+   - Success message appears, page reloads
+
+4. **Test API directly**:
+
+   ```bash
+   # List plugins
+   curl http://127.0.0.1:8000/api/plugins
+
+   # Check active adapters
+   curl http://127.0.0.1:8000/api/plugins/active
+
+   # Switch adapter
+   curl -X POST http://127.0.0.1:8000/api/plugins/switch \
+     -H "Content-Type: application/json" \
+     -d '{"adapter_type": "ocr", "adapter_name": "mock"}'
+   ```
+
+5. **Expected behavior**:
+   - ✅ Plugins load without errors
+   - ✅ Dropdowns populate with available adapters
+   - ✅ Status badges show active state
+   - ✅ Switching updates status in real-time
+   - ✅ No server restart needed
 
 ## 📚 Documentation
 
-- [Technical Architecture](./arch-tech.md) - Design decisions, plugin APIs, data models
-- [Changelog](./changelog.md) - Version history and updates
-- [Sprint Progress](./mkdoc/) - Development tracking (not in Git)
+- [Technical Architecture](./mkdoc/arch-tech.md) - Design decisions, plugin APIs, data models
+- [Sprint Backlog](./mkdoc/_backlog.md) - Development tracking
+- [Changelog](./CHANGELOG.md) - Version history and updates
 
 ## 🤝 Contributing
 

@@ -1,27 +1,28 @@
 # Technical Architecture - Indexao
 
-**Version**: 0.2.0-dev  
-**Last Updated**: 2025-11-06  
-**Sprint**: Sprint 1 Complete ✅ (UI + Mock Adapters)  
+**Version**: 0.3.0-dev  
+**Last Updated**: 2025-11-07  
+**Sprint**: Sprint 2 Complete ✅ (Plugin Manager + Dynamic Loading + UI)  
 **Architecture Pattern**: Hybrid Rust/Python (Polars Pattern)
 
 ---
 
 ## Current Status
 
-**Sprint 0-1 Complete** (2025-11-05 → 2025-11-06)
+**Sprint 0-2 Complete** (2025-11-05 → 2025-11-07)
 
 - ✅ Foundation: Config, logging, web UI, API management
 - ✅ Processing Pipeline: Upload → Scanner → Processor (5 stages)
 - ✅ Mock Adapters: OCR, Translator, Search (in-memory)
 - ✅ Database: SQLite with document model
-- ✅ Web UI: Upload (progress), Documents (stats/list), Search (highlighting)
+- ✅ Web UI: Upload (progress), Documents (stats/list), Search (highlighting), Config (plugin switcher)
+- ✅ **Plugin Manager**: Dynamic loading, auto-discovery, protocol validation, hot-swap
+- ✅ **REST API**: 7 endpoints for plugin management
+- ✅ **UI Switcher**: Runtime adapter switching without restart
 
 **Next Steps**
 
-- Sprint 1.2: Cleanup & architecture review (2-3 days)
-- Sprint 2: Plugin Manager (dynamic loading, hot-swap)
-- Sprint 3: Real Adapters (Tesseract, Argos, Meilisearch) → **MVP**
+- Sprint 3: Real Adapters (Tesseract, Argos, Meilisearch) → **MVP TESTABLE**
 
 ---
 

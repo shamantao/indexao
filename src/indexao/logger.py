@@ -199,12 +199,14 @@ class LoggerManager:
         self._loggers: Dict[str, ContextEnrichedLogger] = {}
         self._config: Dict[str, Any] = {}
         self._log_dir: Optional[Path] = None
+        self._suppress_logs = os.getenv('INDEXAO_SUPPRESS_LOGS', '').lower() == '1'
         
         # Load configuration
         self._load_config()
         
-        # Setup root logger
-        self._setup_root_logger()
+        # Setup root logger (only if not suppressed)
+        if not self._suppress_logs:
+            self._setup_root_logger()
     
     def _load_config(self, log_dir: Optional[str] = None):
         """Load logging configuration from environment or defaults.
@@ -399,12 +401,13 @@ class LoggerManager:
         # Reload config with new path
         self._load_config(log_dir=str(self._log_dir))
         
-        # Recreate handlers
-        self._setup_root_logger()
+        # Recreate handlers only if not suppressed
+        if not self._suppress_logs:
+            self._setup_root_logger()
         
-        # Log the change
-        logger = self.get_logger('indexao.logger')
-        logger.info(f"Logger reconfigured with log_dir: {self._log_dir}")
+            # Log the change
+            logger = self.get_logger('indexao.logger')
+            logger.info(f"Logger reconfigured with log_dir: {self._log_dir}")
 
 
 # Global logger manager instance

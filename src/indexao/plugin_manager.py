@@ -28,6 +28,7 @@ Usage:
 import logging
 import inspect
 import importlib
+import os
 import pkgutil
 import ast
 from pathlib import Path
@@ -113,7 +114,8 @@ class PluginManager:
             'search': {}
         }
         
-        logger.info("Plugin Manager initialized")
+        if not os.getenv('INDEXAO_SUPPRESS_LOGS', '').lower() == '1':
+            logger.info("Plugin Manager initialized")
     
     def _get_protocol_for_type(self, adapter_type: str) -> Optional[Type]:
         """

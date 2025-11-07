@@ -10,7 +10,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VENV_DIR="$PROJECT_DIR/venv"
 PID_FILE="$PROJECT_DIR/indexao.pid"
-LOG_FILE="$PROJECT_DIR/logs/webui.log"
+
+# Logs directory at project root
+LOG_DIR="$PROJECT_DIR/logs"
+LOG_FILE="$LOG_DIR/webui.log"
 HOST="127.0.0.1"
 PORT="8000"
 
@@ -130,24 +133,7 @@ start() {
     source "$VENV_DIR/bin/activate"
     
     print_status "Lancement du serveur sur http://$HOST:$PORT"
-    
-    # Export log directory from config.toml with variable expansion
-    if [ -f "$PROJECT_DIR/config.toml" ]; then
-        LOG_DIR_CONFIG=$(python3 -c "
-import sys
-sys.path.insert(0, 'src')
-from indexao.config import load_config
-try:
-    config = load_config()
-    print(config.logging.log_dir)
-except Exception as e:
-    print('logs', file=sys.stderr)
-" 2>/dev/null)
-        if [ -n "$LOG_DIR_CONFIG" ] && [ "$LOG_DIR_CONFIG" != "logs" ]; then
-            export INDEXAO_LOG_DIR="$LOG_DIR_CONFIG"
-            print_status "Log directory configured: $INDEXAO_LOG_DIR"
-        fi
-    fi
+    print_status "Logs: $LOG_FILE"
     
     # Démarrer en arrière-plan
     nohup python -m indexao.webui > "$LOG_FILE" 2>&1 &
