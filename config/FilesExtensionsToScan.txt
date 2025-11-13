@@ -1,0 +1,1 @@
+7z,afdesign,afpub,aftemplate,ai,bmp,css,csv,doc,docx,edn,eml,eps,heic,html,jpeg,jpg,js,json,klx,m4a,md,mov,mp4,odp,ods,odt,otp,ott,pdf,png,potx,pptx,srt,svg,txt,vcf,xls,xlsx,zip

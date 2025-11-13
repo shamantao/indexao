@@ -9,8 +9,8 @@ from indexao.plugin_manager import PluginManager, PluginMetadata
 
 logger = get_logger(__name__)
 
-# Create router
-router = APIRouter(prefix="/api/plugins", tags=["plugins"])
+# Create router with redirect_slashes disabled to avoid 307 redirects
+router = APIRouter(prefix="/api/plugins", tags=["plugins"], redirect_slashes=False)
 
 # Global plugin manager instance (will be set by main.py)
 _plugin_manager: Optional[PluginManager] = None
@@ -55,6 +55,7 @@ class ActiveAdapter(BaseModel):
 # API Endpoints
 
 @router.get("/", response_model=List[PluginInfo])
+@router.get("", response_model=List[PluginInfo])
 async def list_plugins(adapter_type: Optional[str] = None):
     """
     List all available plugins

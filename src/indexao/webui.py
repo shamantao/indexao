@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
@@ -131,6 +131,15 @@ async def startup_event():
 async def home(request: Request):
     """Redirect root to search page (new home)."""
     return RedirectResponse(url="/search", status_code=302)
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve favicon."""
+    favicon_path = STATIC_DIR / "favicon.ico"
+    if favicon_path.exists():
+        return FileResponse(favicon_path)
+    raise HTTPException(status_code=404, detail="Favicon not found")
 
 
 @app.get("/upload", response_class=HTMLResponse)

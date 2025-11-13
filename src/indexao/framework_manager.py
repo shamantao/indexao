@@ -68,6 +68,24 @@ class FrameworkManager:
             local_path="/static/css/vendor/fontawesome.min.css",
             cdn_url="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css",
             version="6.4.0"
+        ),
+        "fa-solid-woff2": Framework(
+            name="FontAwesome Solid WOFF2",
+            local_path="/static/css/webfonts/fa-solid-900.woff2",
+            cdn_url="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.woff2",
+            version="6.4.0"
+        ),
+        "fa-brands-woff2": Framework(
+            name="FontAwesome Brands WOFF2",
+            local_path="/static/css/webfonts/fa-brands-400.woff2",
+            cdn_url="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-brands-400.woff2",
+            version="6.4.0"
+        ),
+        "fa-regular-woff2": Framework(
+            name="FontAwesome Regular WOFF2",
+            local_path="/static/css/webfonts/fa-regular-400.woff2",
+            cdn_url="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-regular-400.woff2",
+            version="6.4.0"
         )
     }
     
