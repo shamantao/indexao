@@ -1,0 +1,163 @@
+<!-- Indexao Sidebar Component -->
+<aside class="sidebar" x-data="{ collapsed: false }">
+    <div class="sidebar-header">
+        <button 
+            @click="collapsed = !collapsed" 
+            class="sidebar-toggle"
+            title="Toggle Sidebar"
+        >
+            <i class="fas" :class="collapsed ? 'fa-chevron-right' : 'fa-chevron-left'"></i>
+        </button>
+    </div>
+    
+    <nav class="sidebar-nav" :class="{ 'collapsed': collapsed }">
+        {% block sidebar_content %}
+        <!-- Default sidebar content (can be overridden by pages) -->
+        <div class="sidebar-section">
+            <h3 class="sidebar-title">
+                <i class="fas fa-list"></i>
+                <span x-show="!collapsed">Navigation</span>
+            </h3>
+            <ul class="sidebar-menu">
+                <li>
+                    <a href="#quick-start" class="sidebar-link">
+                        <i class="fas fa-rocket"></i>
+                        <span x-show="!collapsed">Quick Start</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#recent" class="sidebar-link">
+                        <i class="fas fa-clock"></i>
+                        <span x-show="!collapsed">Recent</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="#stats" class="sidebar-link">
+                        <i class="fas fa-chart-bar"></i>
+                        <span x-show="!collapsed">Statistics</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        {% endblock %}
+    </nav>
+</aside>
+
+<style>
+.main-layout {
+    display: flex;
+    min-height: calc(100vh - 60px); /* header height */
+}
+
+.sidebar {
+    width: 250px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+    transition: width 0.3s;
+}
+
+.sidebar.collapsed {
+    width: 60px;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-toggle {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.sidebar-toggle:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.sidebar-nav {
+    padding: 1rem;
+}
+
+.sidebar-nav.collapsed .sidebar-title span,
+.sidebar-nav.collapsed .sidebar-link span {
+    display: none;
+}
+
+.sidebar-section {
+    margin-bottom: 1.5rem;
+}
+
+.sidebar-title {
+    font-size: 0.75em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar-menu li {
+    margin-bottom: 0.25rem;
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.sidebar-link:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.sidebar-link.active {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.main-content {
+    flex: 1;
+    padding: 2rem;
+    min-width: 0; /* Prevents flex overflow */
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: -250px;
+        z-index: 1000;
+        transition: left 0.3s;
+    }
+    
+    .sidebar.show {
+        left: 0;
+    }
+    
+    .main-content {
+        padding: 1rem;
+    }
+}
+</style>

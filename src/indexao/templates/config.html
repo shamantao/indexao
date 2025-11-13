@@ -1,404 +1,763 @@
-<!DOCTYPE html>
-<html lang="fr" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/css/styles.css?v=1.0.1">
-</head>
-<body>
-    <!-- Header -->
-    <header class="header">
-        <div class="header-content">
-            <div class="logo">
-                <div class="logo-icon">
-                    <i class="fas fa-database"></i>
-                </div>
-                <h1>Indexao</h1>
-            </div>
-            <nav class="header-nav">
-                <a href="/">
-                    <i class="fas fa-upload"></i>
-                    Upload
-                </a>
-                <a href="/config" class="active">
-                    <i class="fas fa-cog"></i>
-                    Configuration
-                </a>
-                <a href="/api/config" target="_blank">
-                    <i class="fas fa-code"></i>
-                    API JSON
-                </a>
-            </nav>
-        </div>
-    </header>
-    <div class="container">
-        <!-- Logging Section -->
-        <div class="card">
-            <h2>
-                <i class="fas fa-file-alt"></i>
-                Logging
-            </h2>
-                <div class="config-row">
-                    <div class="config-key">Level</div>
-                    <div class="config-value">
-                        <span class="badge badge-info">{{ config.logging.level }}</span>
-                    </div>
-                <div class="config-row">
-                    <div class="config-key">Level</div>
-                    <div class="config-value">
-                        <span class="badge badge-info">{{ config.logging.level }}</span>
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Console Enabled</div>
-                    <div class="config-value">
-                        <span class="badge badge-{{ 'true' if config.logging.console_enabled else 'false' }}">
-                            <i class="fas fa-{{ 'check' if config.logging.console_enabled else 'times' }}-circle"></i>
-                            {{ config.logging.console_enabled }}
-                        </span>
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">File Enabled</div>
-                    <div class="config-value">
-                        <span class="badge badge-{{ 'true' if config.logging.file_enabled else 'false' }}">
-                            <i class="fas fa-{{ 'check' if config.logging.file_enabled else 'times' }}-circle"></i>
-                            {{ config.logging.file_enabled }}
-                        </span>
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Log Directory</div>
-                    <div class="config-value">
-                        <i class="fas fa-folder"></i>
-                        {{ config.logging.log_dir }}
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Slow Threshold</div>
-                    <div class="config-value">{{ config.logging.slow_threshold_ms }}ms</div>
-                </div>
-            </div>
-            
-            <!-- Directories -->
-            <div class="card">
-                <h2>
-                    <i class="fas fa-folder-open"></i>
-                    Directories
-                </h2>
-                <div class="config-row">
-                    <div class="config-key">Input Directory</div>
-                    <div class="config-value">
-                        <i class="fas fa-inbox"></i>
-                        {{ config.input_dir }}
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Output Directory</div>
-                    <div class="config-value">
-                        <i class="fas fa-folder"></i>
-                        {{ config.output_dir }}
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Temp Directory</div>
-                    <div class="config-value">
-                        <i class="fas fa-clock"></i>
-                        {{ config.temp_dir }}
-                    </div>
-                </div>
-                
-                <div class="subsection">
-                    <h3>Path Adapters</h3>
-                    <div class="config-row">
-                        <div class="config-key">Cache Enabled</div>
-                        <div class="config-value">
-                            <span class="badge badge-{{ 'true' if config.paths.cache_enabled else 'false' }}">
-                                <i class="fas fa-{{ 'check' if config.paths.cache_enabled else 'times' }}-circle"></i>
-                                {{ config.paths.cache_enabled }}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="config-row">
-                        <div class="config-key">Cache TTL</div>
-                        <div class="config-value">{{ config.paths.cache_ttl_seconds }}s</div>
-                    </div>
-                    <div class="config-row">
-                        <div class="config-key">Retry Enabled</div>
-                        <div class="config-value">
-                            <span class="badge badge-{{ 'true' if config.paths.retry_enabled else 'false' }}">
-                                {{ config.paths.retry_enabled }}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="config-row">
-                        <div class="config-key">Retry Attempts</div>
-                        <div class="config-value">{{ config.paths.retry_attempts }}</div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Plugin Switcher (Runtime) -->
-            <div class="card">
-                <h2>
-                    <i class="fas fa-exchange-alt"></i>
-                    Plugin Switcher (Hot-Swap)
-                </h2>
-                <p class="config-help">
-                    <i class="fas fa-info-circle"></i>
-                    Switch between adapters without restarting the server. Changes take effect immediately.
-                </p>
-                
-                <!-- OCR Switcher -->
-                <div class="switcher-section">
-                    <h3><i class="fas fa-eye"></i> OCR Engine</h3>
-                    <div class="switcher-controls">
-                        <select id="ocr-selector" class="adapter-selector">
-                            <option value="">Loading...</option>
-                        </select>
-                        <button onclick="switchAdapter('ocr')" class="btn btn-primary">
-                            <i class="fas fa-sync-alt"></i>
-                            Switch OCR
-                        </button>
-                        <span id="ocr-status" class="switcher-status"></span>
-                    </div>
-                </div>
-                
-                <!-- Translator Switcher -->
-                <div class="switcher-section">
-                    <h3><i class="fas fa-language"></i> Translator Engine</h3>
-                    <div class="switcher-controls">
-                        <select id="translator-selector" class="adapter-selector">
-                            <option value="">Loading...</option>
-                        </select>
-                        <button onclick="switchAdapter('translator')" class="btn btn-primary">
-                            <i class="fas fa-sync-alt"></i>
-                            Switch Translator
-                        </button>
-                        <span id="translator-status" class="switcher-status"></span>
-                    </div>
-                </div>
-                
-                <!-- Search Switcher -->
-                <div class="switcher-section">
-                    <h3><i class="fas fa-search"></i> Search Engine</h3>
-                    <div class="switcher-controls">
-                        <select id="search-selector" class="adapter-selector">
-                            <option value="">Loading...</option>
-                        </select>
-                        <button onclick="switchAdapter('search')" class="btn btn-primary">
-                            <i class="fas fa-sync-alt"></i>
-                            Switch Search
-                        </button>
-                        <span id="search-status" class="switcher-status"></span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- OCR Plugin -->
-            <div class="card">
-                <h2>
-                    <i class="fas fa-eye"></i>
-                    OCR Plugin
-                </h2>
-                <div class="config-row">
-                    <div class="config-key">Engine</div>
-                    <div class="config-value">
-                        <span class="badge badge-info">{{ config.plugins.ocr.engine }}</span>
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Languages</div>
-                    <div class="config-value">
-                        {% for lang in config.plugins.ocr.languages %}
-                        <span class="badge badge-info">{{ lang }}</span>
-                        {% endfor %}
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Confidence Threshold</div>
-                    <div class="config-value">{{ config.plugins.ocr.confidence_threshold }}</div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Timeout</div>
-                    <div class="config-value">{{ config.plugins.ocr.timeout_seconds }}s</div>
-                </div>
-            </div>
-            
-            <!-- Translator Plugin -->
-            <div class="card">
-                <h2>
-                    <i class="fas fa-language"></i>
-                    Translator Plugin
-                </h2>
-                <div class="config-row">
-                    <div class="config-key">Engine</div>
-                    <div class="config-value">
-                        <span class="badge badge-info">{{ config.plugins.translator.engine }}</span>
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Source Language</div>
-                    <div class="config-value">{{ config.plugins.translator.source_language }}</div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Target Languages</div>
-                    <div class="config-value">
-                        {% for lang in config.plugins.translator.target_languages %}
-                        <span class="badge badge-info">{{ lang }}</span>
-                        {% endfor %}
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Confidence Threshold</div>
-                    <div class="config-value">{{ config.plugins.translator.confidence_threshold }}</div>
-                </div>
-            </div>
-            
-            <!-- Search Plugin -->
-            <div class="card">
-                <h2>
-                    <i class="fas fa-search"></i>
-                    Search Plugin
-                </h2>
-                <div class="config-row">
-                    <div class="config-key">Engine</div>
-                    <div class="config-value">
-                        <span class="badge badge-info">{{ config.plugins.search.engine }}</span>
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Host</div>
-                    <div class="config-value">
-                        <i class="fas fa-server"></i>
-                        {{ config.plugins.search.host }}
-                    </div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Port</div>
-                    <div class="config-value">{{ config.plugins.search.port }}</div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">Index Name</div>
-                    <div class="config-value">{{ config.plugins.search.index_name }}</div>
-                </div>
-                <div class="config-row">
-                    <div class="config-key">API Key</div>
-                    <div class="config-value">
-                        <i class="fas fa-key"></i>
-                        {% if config.plugins.search.api_key %}
-                        <span class="badge badge-info">***{{ config.plugins.search.api_key[-4:] }}</span>
-                        {% else %}
-                        <span class="badge badge-false">Not configured</span>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <footer>
-            <p>Indexao v0.1.0 - Sprint 0 Configuration Viewer</p>
-        </footer>
+{% extends "base.html" %}
+
+{% set active_page = "config" %}
+
+{% block title %}Configuration - Indexao{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Tabs Navigation */
+.tabs-nav {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tab-button {
+    padding: 1rem 2rem;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1em;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tab-button:hover {
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+}
+
+.tab-button.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Meilisearch Index Card */
+.index-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s;
+}
+
+.index-card:hover {
+    border-color: var(--accent-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.index-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.index-name {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.index-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.stat-item i {
+    color: var(--accent-secondary);
+}
+
+.index-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-danger {
+    background: var(--accent-danger);
+}
+
+.btn-danger:hover {
+    background: #c92a2a;
+}
+
+/* Badge Styles */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+.badge-success {
+    background: rgba(34, 139, 34, 0.2);
+    color: #51cf66;
+    border: 1px solid rgba(81, 207, 102, 0.3);
+}
+
+.badge-false {
+    background: rgba(220, 53, 69, 0.2);
+    color: #ff6b6b;
+    border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.modal.active {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal-overlay.show {
+    display: flex;
+}
+
+.modal-content,
+.modal-box {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.modal-header h3 {
+    margin: 0;
+}
+
+.close-button {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.5em;
+    padding: 0.25rem;
+    line-height: 1;
+}
+
+.close-button:hover {
+    color: var(--text-primary);
+}
+
+.form-group {
+```
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: inherit;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+    font-family: 'Courier New', monospace;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="configManager()">
+    <!-- Tabs Navigation -->
+    <!-- Tabs Navigation -->
+    <div class="tabs-nav">
+        <button 
+            class="tab-button"
+            :class="{ 'active': activeTab === 'indexao' }"
+            @click="activeTab = 'indexao'"
+        >
+            <i class="fas fa-cog"></i>
+            Configuration Indexao
+        </button>
+        <button 
+            class="tab-button"
+            :class="{ 'active': activeTab === 'cloud' }"
+            @click="activeTab = 'cloud'; loadCloudVolumes()"
+        >
+            <i class="fas fa-cloud"></i>
+            Volumes Cloud
+        </button>
+        <button 
+            class="tab-button"
+            :class="{ 'active': activeTab === 'meilisearch' }"
+            @click="activeTab = 'meilisearch'; loadIndexes()"
+        >
+            <i class="fas fa-database"></i>
+            Index Meilisearch
+        </button>
+    </div>
+
+    <!-- Tab 1: Indexao Configuration -->
+    <div class="tab-content" :class="{ 'active': activeTab === 'indexao' }">
+        {% include 'config_indexao.html' %}
     </div>
     
-    <!-- Plugin Switcher JavaScript -->
-    <script>
-        // Load available plugins and active adapters on page load
-        async function loadPluginData() {
-            try {
-                // Load available plugins for each type
-                const types = ['ocr', 'translator', 'search'];
-                
-                for (const type of types) {
-                    // Get available plugins
-                    const pluginsResp = await fetch(`/api/plugins?adapter_type=${type}`);
-                    const plugins = await pluginsResp.json();
-                    
-                    // Get active adapter
-                    const activeResp = await fetch(`/api/plugins/${type}/active`);
-                    const active = await activeResp.json();
-                    
-                    // Populate selector
-                    const selector = document.getElementById(`${type}-selector`);
-                    selector.innerHTML = '';
-                    
-                    plugins.forEach(plugin => {
-                        const option = document.createElement('option');
-                        option.value = plugin.name;
-                        option.textContent = `${plugin.name} (v${plugin.version})`;
-                        if (plugin.name === active.name) {
-                            option.selected = true;
-                        }
-                        selector.appendChild(option);
-                    });
-                    
-                    // Update status
-                    const status = document.getElementById(`${type}-status`);
-                    if (active.name) {
-                        status.innerHTML = `<span class="badge badge-success"><i class="fas fa-check-circle"></i> Active: ${active.name}</span>`;
-                    } else {
-                        status.innerHTML = `<span class="badge badge-false"><i class="fas fa-times-circle"></i> None active</span>`;
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to load plugin data:', error);
-                alert('Failed to load plugin data. Check console for details.');
-            }
-        }
+    <!-- Tab 2: Cloud Volumes Management -->
+    <div class="tab-content" :class="{ 'active': activeTab === 'cloud' }">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;">
+                    <i class="fas fa-cloud"></i>
+                    Volumes Cloud à Indexer
+                </h2>
+                <button @click="showAddVolumeModal = true">
+                    <i class="fas fa-plus"></i>
+                    Ajouter un volume
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="loadingVolumes" style="text-align: center; padding: 2rem;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2em; color: var(--accent-primary);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Chargement des volumes...</p>
+            </div>
+
+            <!-- Volumes List -->
+            <div x-show="!loadingVolumes && cloudVolumes.length > 0">
+                <template x-for="volume in cloudVolumes" :key="volume.name">
+                    <div class="index-card">
+                        <div class="index-header">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <div class="index-name" x-text="volume.name"></div>
+                                    <span 
+                                        :class="volume.is_mounted ? 'badge badge-success' : 'badge badge-false'"
+                                        :title="volume.is_mounted ? 'Monté' : 'Non monté'"
+                                    >
+                                        <i :class="volume.is_mounted ? 'fas fa-check-circle' : 'fas fa-times-circle'"></i>
+                                        <span x-text="volume.is_mounted ? 'Monté' : 'Non monté'"></span>
+                                    </span>
+                                </div>
+                                <div class="stat-item" style="margin-top: 0.5rem;">
+                                    <i class="fas fa-folder"></i>
+                                    <span x-text="volume.mount_path"></span>
+                                </div>
+                            </div>
+                            <div class="index-actions">
+                                <button 
+                                    @click="scanVolume(volume.name)" 
+                                    :disabled="!volume.is_mounted"
+                                    title="Scanner maintenant"
+                                >
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button @click="deleteVolume(volume.name)" class="btn-danger" title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="index-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-database"></i>
+                                <span x-text="'Index: ' + volume.index_name"></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-file"></i>
+                                <span x-text="volume.total_files + ' fichiers trouvés'"></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-check"></i>
+                                <span x-text="volume.indexed_files + ' indexés'"></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-chart-line"></i>
+                                <span x-text="volume.progress + '%'"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Bar -->
+                        <div x-show="volume.progress > 0" style="margin-top: 1rem;">
+                            <div style="background: var(--bg-tertiary); height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div 
+                                    style="background: var(--accent-primary); height: 100%; transition: width 0.3s;"
+                                    :style="`width: ${volume.progress}%`"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!loadingVolumes && cloudVolumes.length === 0" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                <i class="fas fa-cloud" style="font-size: 3em; margin-bottom: 1rem;"></i>
+                <p>Aucun volume cloud configuré</p>
+                <button @click="showAddVolumeModal = true" style="margin-top: 1rem;">
+                    <i class="fas fa-plus"></i>
+                    Ajouter votre premier volume
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Meilisearch Management -->
+    <div class="tab-content" :class="{ 'active': activeTab === 'meilisearch' }">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;">
+                    <i class="fas fa-list"></i>
+                    Index Meilisearch
+                </h2>
+                <button @click="showCreateModal = true">
+                    <i class="fas fa-plus"></i>
+                    Créer un index
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="loading" style="text-align: center; padding: 2rem;">
+```
+                <i class="fas fa-spinner fa-spin" style="font-size: 2em; color: var(--accent-primary);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Chargement des index...</p>
+            </div>
+
+            <!-- Indexes List -->
+            <div x-show="!loading && indexes.length > 0">
+                <template x-for="index in indexes" :key="index.uid">
+                    <div class="index-card">
+                        <div class="index-header">
+                            <div>
+                                <div class="index-name" x-text="index.uid"></div>
+                                <div class="stat-item">
+                                    <i class="fas fa-clock"></i>
+                                    <span x-text="'Créé: ' + new Date(index.createdAt).toLocaleDateString('fr-FR')"></span>
+                                </div>
+                            </div>
+                            <div class="index-actions">
+                                <button @click="configureIndex(index.uid)" title="Configurer">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button @click="deleteIndex(index.uid)" class="btn-danger" title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="index-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-file"></i>
+                                <span x-text="(index.numberOfDocuments || 0) + ' documents'"></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-key"></i>
+                                <span x-text="'Primary: ' + (index.primaryKey || 'auto')"></span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!loading && indexes.length === 0" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                <i class="fas fa-inbox" style="font-size: 3em; margin-bottom: 1rem;"></i>
+                <p>Aucun index Meilisearch</p>
+                <button @click="showCreateModal = true" style="margin-top: 1rem;">
+                    <i class="fas fa-plus"></i>
+                    Créer votre premier index
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Index Modal -->
+    <div class="modal-overlay" :class="{ 'show': showCreateModal }" @click.self="showCreateModal = false">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus-circle"></i> Créer un nouvel index</h3>
+                <button @click="showCreateModal = false" style="background: transparent; border: none;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form @submit.prevent="createIndex()">
+                <div class="form-group">
+                    <label for="indexUid">
+                        <i class="fas fa-tag"></i>
+                        Nom de l'index (UID) *
+                    </label>
+                    <input 
+                        type="text" 
+                        id="indexUid" 
+                        x-model="newIndex.uid"
+                        placeholder="ex: documents_pcloud"
+                        required
+                        pattern="[a-zA-Z0-9_-]+"
+                    >
+                    <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                        Uniquement lettres, chiffres, tirets et underscores
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="indexPrimaryKey">
+                        <i class="fas fa-key"></i>
+                        Primary Key (optionnel)
+                    </label>
+                    <input 
+                        type="text" 
+                        id="indexPrimaryKey" 
+                        x-model="newIndex.primaryKey"
+                        placeholder="ex: id (auto si vide)"
+                    >
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" @click="showCreateModal = false" style="background: var(--bg-secondary);">
+                        Annuler
+                    </button>
+                    <button type="submit">
+                        <i class="fas fa-check"></i>
+                        Créer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Volume Modal -->
+    <div class="modal" :class="{ 'active': showAddVolumeModal }" @click.self="showAddVolumeModal = false">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-cloud"></i>
+                    Ajouter un Volume Cloud
+                </h3>
+                <button @click="showAddVolumeModal = false" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form @submit.prevent="addVolume">
+                <div class="form-group">
+                    <label for="volumeName">
+                        <i class="fas fa-tag"></i>
+                        Nom du volume *
+                    </label>
+                    <input 
+                        type="text" 
+                        id="volumeName" 
+                        x-model="newVolume.name"
+                        placeholder="ex: pcloud_drive"
+                        required
+                    >
+                    <small>Identifiant unique du volume (sans espaces)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="volumePath">
+                        <i class="fas fa-folder"></i>
+                        Chemin de montage *
+                    </label>
+                    <input 
+                        type="text" 
+                        id="volumePath" 
+                        x-model="newVolume.mount_path"
+                        placeholder="/Users/phil/pCloud Drive"
+                        required
+                    >
+                    <small>Chemin absolu vers le répertoire à indexer</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="volumeIndex">
+                        <i class="fas fa-database"></i>
+                        Nom de l'index Meilisearch
+                    </label>
+                    <input 
+                        type="text" 
+                        id="volumeIndex" 
+                        x-model="newVolume.index_name"
+                        placeholder="Laissez vide pour générer automatiquement"
+                    >
+                    <small>Si vide, sera généré automatiquement (ex: pcloud_drive_docs)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="volumePatterns">
+                        <i class="fas fa-filter"></i>
+                        Extensions de fichiers
+                    </label>
+                    <input 
+                        type="text" 
+                        id="volumePatterns" 
+                        x-model="newVolume.file_patterns"
+                        placeholder="*.pdf,*.doc,*.docx,*.txt,*.md"
+                    >
+                    <small>Extensions séparées par des virgules (ex: *.pdf,*.doc)</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" @click="showAddVolumeModal = false" style="background: var(--bg-secondary);">
+                        Annuler
+                    </button>
+                    <button type="submit">
+                        <i class="fas fa-check"></i>
+                        Ajouter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function configManager() {
+    return {
+        activeTab: 'indexao',
+        loading: false,
+        indexes: [],
+        showCreateModal: false,
+        newIndex: {
+            uid: '',
+            primaryKey: ''
+        },
         
-        // Switch adapter
-        async function switchAdapter(type) {
-            const selector = document.getElementById(`${type}-selector`);
-            const adapterName = selector.value;
-            const status = document.getElementById(`${type}-status`);
+        // Cloud volumes management
+        loadingVolumes: false,
+        cloudVolumes: [],
+        showAddVolumeModal: false,
+        newVolume: {
+            name: '',
+            mount_path: '',
+            index_name: '',
+            file_patterns: '*.pdf,*.doc,*.docx,*.txt,*.md'
+        },
+
+        async loadIndexes() {
+            if (this.indexes.length > 0) return; // Already loaded
             
-            if (!adapterName) {
-                alert('Please select an adapter');
+            this.loading = true;
+            try {
+                const response = await fetch('/api/meilisearch/indexes');
+                const data = await response.json();
+                this.indexes = data.results || [];
+            } catch (error) {
+                console.error('Error loading indexes:', error);
+                showAlert('Erreur lors du chargement des index', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async createIndex() {
+            try {
+                const response = await fetch('/api/meilisearch/indexes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.newIndex)
+                });
+
+                if (!response.ok) throw new Error('Failed to create index');
+
+                const data = await response.json();
+                showAlert('Index créé avec succès', 'success');
+                this.showCreateModal = false;
+                this.newIndex = { uid: '', primaryKey: '' };
+                this.indexes = []; // Force reload
+                await this.loadIndexes();
+            } catch (error) {
+                console.error('Error creating index:', error);
+                showAlert('Erreur lors de la création de l\'index', 'error');
+            }
+        },
+
+        async deleteIndex(uid) {
+            if (!confirm(`Êtes-vous sûr de vouloir supprimer l'index "${uid}" ?`)) return;
+
+            try {
+                const response = await fetch(`/api/meilisearch/indexes/${uid}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete index');
+
+                showAlert('Index supprimé avec succès', 'success');
+                this.indexes = this.indexes.filter(idx => idx.uid !== uid);
+            } catch (error) {
+                console.error('Error deleting index:', error);
+                showAlert('Erreur lors de la suppression de l\'index', 'error');
+            }
+        },
+
+        configureIndex(uid) {
+            // TODO: Open configuration modal
+            showAlert('Configuration de l\'index à venir', 'info');
+        },
+        
+        // Cloud volumes functions
+        async loadCloudVolumes() {
+            this.loadingVolumes = true;
+            try {
+                const response = await fetch('/api/cloud/volumes');
+                const data = await response.json();
+                this.cloudVolumes = data.volumes || [];
+            } catch (error) {
+                console.error('Error loading cloud volumes:', error);
+                showAlert('Erreur lors du chargement des volumes cloud', 'error');
+            } finally {
+                this.loadingVolumes = false;
+            }
+        },
+        
+        async addVolume() {
+            if (!this.newVolume.name || !this.newVolume.mount_path) {
+                showAlert('Le nom et le chemin sont requis', 'error');
                 return;
             }
             
             try {
-                // Show loading
-                status.innerHTML = `<span class="badge badge-info"><i class="fas fa-spinner fa-spin"></i> Switching...</span>`;
-                
-                // Call API
-                const resp = await fetch('/api/plugins/switch', {
+                const response = await fetch('/api/cloud/volumes', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        adapter_type: type,
-                        adapter_name: adapterName
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.newVolume)
                 });
-                
-                if (!resp.ok) {
-                    const error = await resp.json();
-                    throw new Error(error.detail || 'Failed to switch adapter');
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to add volume');
                 }
-                
-                const result = await resp.json();
-                
-                // Show success
-                status.innerHTML = `<span class="badge badge-success"><i class="fas fa-check-circle"></i> Switched to ${adapterName}</span>`;
-                
-                // Reload after 1 second
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-                
+
+                const data = await response.json();
+                showAlert('Volume ajouté avec succès', 'success');
+                this.showAddVolumeModal = false;
+                this.newVolume = { name: '', mount_path: '', index_name: '', file_patterns: '*.pdf,*.doc,*.docx,*.txt,*.md' };
+                await this.loadCloudVolumes();
             } catch (error) {
-                console.error('Switch failed:', error);
-                status.innerHTML = `<span class="badge badge-false"><i class="fas fa-times-circle"></i> Failed: ${error.message}</span>`;
+                console.error('Error adding volume:', error);
+                showAlert(error.message || 'Erreur lors de l\'ajout du volume', 'error');
+            }
+        },
+        
+        async scanVolume(name) {
+            try {
+                const response = await fetch(`/api/cloud/volumes/${name}/scan`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) throw new Error('Failed to start scan');
+
+                const data = await response.json();
+                showAlert('Scan démarré. Cela peut prendre du temps...', 'success');
+                
+                // Reload volumes to show progress
+                setTimeout(() => this.loadCloudVolumes(), 2000);
+            } catch (error) {
+                console.error('Error scanning volume:', error);
+                showAlert('Erreur lors du lancement du scan', 'error');
+            }
+        },
+        
+        async deleteVolume(name) {
+            if (!confirm(`Êtes-vous sûr de vouloir supprimer le volume "${name}" ?`)) return;
+
+            try {
+                const response = await fetch(`/api/cloud/volumes/${name}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete volume');
+
+                showAlert('Volume supprimé avec succès', 'success');
+                this.cloudVolumes = this.cloudVolumes.filter(v => v.name !== name);
+            } catch (error) {
+                console.error('Error deleting volume:', error);
+                showAlert('Erreur lors de la suppression du volume', 'error');
             }
         }
-        
-        // Load on page ready
-        document.addEventListener('DOMContentLoaded', loadPluginData);
-    </script>
-</body>
-</html>
-
+    };
+}
+</script>
+{% endblock %}

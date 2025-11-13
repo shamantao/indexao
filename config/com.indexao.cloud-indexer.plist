@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.indexao.cloud-indexer</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/phil/Library/CloudStorage/Dropbox/devwww/app/indexao/venv/bin/python</string>
+        <string>-m</string>
+        <string>indexao.cloud_indexer</string>
+        <string>--daemon</string>
+        <string>--batch-size</string>
+        <string>50</string>
+    </array>
+    
+    <key>WorkingDirectory</key>
+    <string>/Users/phil/Library/CloudStorage/Dropbox/devwww/app/indexao</string>
+    
+    <key>StandardOutPath</key>
+    <string>/Users/phil/Library/CloudStorage/Dropbox/devwww/app/indexao/logs/cloud-indexer.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/phil/Library/CloudStorage/Dropbox/devwww/app/indexao/logs/cloud-indexer.error.log</string>
+    
+    <!-- Ne démarrer que si les chemins existent -->
+    <key>PathState</key>
+    <dict>
+        <key>/Users/phil/pCloud Drive</key>
+        <true/>
+    </dict>
+    
+    <!-- Redémarrer automatiquement -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>PathState</key>
+        <dict>
+            <key>/Users/phil/pCloud Drive</key>
+            <true/>
+        </dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    
+    <!-- Throttle: attendre 60s entre les redémarrages -->
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+    
+    <key>RunAtLoad</key>
+    <false/>
+    
+    <!-- Variables d'environnement -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/Users/phil/Library/CloudStorage/Dropbox/devwww/app/indexao/src</string>
+        <key>PATH</key>
+        <string>/Users/phil/Library/CloudStorage/Dropbox/devwww/app/indexao/venv/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>

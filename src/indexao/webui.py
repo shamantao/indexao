@@ -15,10 +15,11 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
+import httpx
 
 from indexao.config import load_config, get_config, Config
 from indexao.logger import get_logger
@@ -27,6 +28,7 @@ from indexao.scanner import FileScanner, scan_directory
 from indexao.processor import DocumentProcessor, ProcessingStatus
 from indexao.database import DocumentDatabase
 from indexao.models.document import ProcessingStatus as DocStatus
+from indexao.framework_manager import get_framework_manager
 from indexao.plugin_manager import PluginManager
 from indexao.plugin_routes import router as plugin_router, set_plugin_manager
 
@@ -127,11 +129,18 @@ async def startup_event():
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    """Home page with upload interface."""
+    """Redirect root to search page (new home)."""
+    return RedirectResponse(url="/search", status_code=302)
+
+
+@app.get("/upload", response_class=HTMLResponse)
+async def upload_page(request: Request):
+    """Upload page interface."""
     config = get_config()
     return templates.TemplateResponse("index.html", {
         "request": request,
         "title": "Indexao - Document Indexing",
+        "version": "0.3.0-dev",
         "config": {
             "ocr_engine": config.plugins.ocr.engine,
             "translator_engine": config.plugins.translator.engine,
@@ -148,6 +157,7 @@ async def config_page(request: Request):
     return templates.TemplateResponse("config.html", {
         "request": request,
         "title": "Configuration",
+        "version": "0.3.0-dev",
         "config": config
     })
 
@@ -157,16 +167,18 @@ async def documents_page(request: Request):
     """Documents list page."""
     return templates.TemplateResponse("documents.html", {
         "request": request,
-        "title": "Documents - Indexao"
+        "title": "Documents - Indexao",
+        "version": "0.3.0-dev"
     })
 
 
 @app.get("/search", response_class=HTMLResponse)
 async def search_page(request: Request):
-    """Search page."""
+    """Search page - now the home page."""
     return templates.TemplateResponse("search.html", {
         "request": request,
-        "title": "Search - Indexao"
+        "title": "Search - Indexao",
+        "version": "0.3.0-dev"
     })
 
 
@@ -675,6 +687,321 @@ async def get_statistics() -> Dict[str, Any]:
     
     except Exception as e:
         logger.error(f"Error getting statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Meilisearch Proxy API Routes
+# =============================================================================
+
+@app.get("/api/meilisearch/indexes")
+async def meilisearch_list_indexes():
+    """List all Meilisearch indexes."""
+    config = get_config()
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes",
+                headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        logger.error(f"Error listing Meilisearch indexes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/meilisearch/indexes")
+async def meilisearch_create_index(request: Request):
+    """Create a new Meilisearch index."""
+    config = get_config()
+    
+    try:
+        body = await request.json()
+        uid = body.get("uid")
+        primaryKey = body.get("primaryKey")
+        
+        if not uid:
+            raise HTTPException(status_code=400, detail="uid is required")
+        
+        payload = {"uid": uid}
+        if primaryKey:
+            payload["primaryKey"] = primaryKey
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes",
+                json=payload,
+                headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+            )
+            response.raise_for_status()
+            return response.json()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating Meilisearch index: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/meilisearch/indexes/{index_uid}")
+async def meilisearch_get_index(index_uid: str):
+    """Get Meilisearch index details."""
+    config = get_config()
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes/{index_uid}",
+                headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        logger.error(f"Error getting Meilisearch index {index_uid}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/meilisearch/indexes/{index_uid}")
+async def meilisearch_delete_index(index_uid: str):
+    """Delete a Meilisearch index."""
+    config = get_config()
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes/{index_uid}",
+                headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+            )
+            response.raise_for_status()
+            return {"status": "success", "message": f"Index {index_uid} deleted"}
+    except Exception as e:
+        logger.error(f"Error deleting Meilisearch index {index_uid}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/meilisearch/indexes/{index_uid}")
+async def meilisearch_update_index(index_uid: str, request: Request):
+    """Update Meilisearch index settings (searchable/filterable attributes)."""
+    config = get_config()
+    
+    try:
+        body = await request.json()
+        
+        async with httpx.AsyncClient() as client:
+            # Update searchable attributes if provided
+            if "searchableAttributes" in body:
+                response = await client.patch(
+                    f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes/{index_uid}/settings/searchable-attributes",
+                    json=body["searchableAttributes"],
+                    headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+                )
+                response.raise_for_status()
+            
+            # Update filterable attributes if provided
+            if "filterableAttributes" in body:
+                response = await client.patch(
+                    f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes/{index_uid}/settings/filterable-attributes",
+                    json=body["filterableAttributes"],
+                    headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+                )
+                response.raise_for_status()
+            
+            return {"status": "success", "message": f"Index {index_uid} updated"}
+    except Exception as e:
+        logger.error(f"Error updating Meilisearch index {index_uid}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Cloud Volumes Management API Routes
+# =============================================================================
+
+@app.get("/api/cloud/volumes")
+async def list_cloud_volumes():
+    """List all configured cloud volumes."""
+    try:
+        from indexao.cloud_indexer import setup_default_volumes
+        indexer = setup_default_volumes()
+        
+        volumes_data = []
+        for name, volume in indexer.state.volumes.items():
+            volumes_data.append({
+                "name": volume.name,
+                "mount_path": volume.mount_path,
+                "index_name": volume.index_name,
+                "enabled": volume.enabled,
+                "is_mounted": indexer.is_mounted(volume),
+                "total_files": volume.total_files,
+                "indexed_files": volume.indexed_files,
+                "last_scan": volume.last_scan,
+                "progress": round(volume.indexed_files / volume.total_files * 100, 1) if volume.total_files > 0 else 0
+            })
+        
+        return {"volumes": volumes_data}
+    
+    except Exception as e:
+        logger.error(f"Error listing cloud volumes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/cloud/volumes")
+async def add_cloud_volume(request: Request):
+    """Add a new cloud volume."""
+    try:
+        from indexao.cloud_indexer import CloudIndexer
+        from pathlib import Path
+        
+        body = await request.json()
+        name = body.get("name")
+        mount_path = body.get("mount_path")
+        index_name = body.get("index_name")
+        
+        if not all([name, mount_path, index_name]):
+            raise HTTPException(status_code=400, detail="Missing required fields")
+        
+        # Validate path exists
+        if not Path(mount_path).exists():
+            raise HTTPException(status_code=400, detail=f"Path does not exist: {mount_path}")
+        
+        indexer = CloudIndexer()
+        volume = indexer.add_volume(
+            name=name,
+            mount_path=mount_path,
+            index_name=index_name,
+            file_patterns=body.get("file_patterns"),
+            exclude_patterns=body.get("exclude_patterns")
+        )
+        
+        return {
+            "status": "success",
+            "volume": {
+                "name": volume.name,
+                "mount_path": volume.mount_path,
+                "index_name": volume.index_name
+            }
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding cloud volume: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/cloud/volumes/{volume_name}/scan")
+async def scan_cloud_volume(volume_name: str):
+    """Trigger a scan of a specific cloud volume."""
+    try:
+        from indexao.cloud_indexer import setup_default_volumes
+        indexer = setup_default_volumes()
+        
+        volume = indexer.state.volumes.get(volume_name)
+        if not volume:
+            raise HTTPException(status_code=404, detail=f"Volume not found: {volume_name}")
+        
+        if not indexer.is_mounted(volume):
+            raise HTTPException(status_code=400, detail=f"Volume not mounted: {volume_name}")
+        
+        # Start scan (this will be async in production)
+        result = indexer.index_volume_progressive(volume)
+        
+        return result
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error scanning cloud volume {volume_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/cloud/volumes/{volume_name}")
+async def delete_cloud_volume(volume_name: str):
+    """Remove a cloud volume from configuration."""
+    try:
+        from indexao.cloud_indexer import CloudIndexer
+        indexer = CloudIndexer()
+        
+        if volume_name not in indexer.state.volumes:
+            raise HTTPException(status_code=404, detail=f"Volume not found: {volume_name}")
+        
+        del indexer.state.volumes[volume_name]
+        indexer.state.save()
+        
+        return {"status": "success", "message": f"Volume {volume_name} removed"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting cloud volume {volume_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Framework Management API Routes
+# ============================================================================
+
+@app.get("/api/frameworks/status")
+async def get_frameworks_status():
+    """Get status of all managed frameworks (JS/CSS libraries)."""
+    try:
+        manager = get_framework_manager()
+        status = manager.get_status()
+        return {"frameworks": status}
+    except Exception as e:
+        logger.error(f"Error getting frameworks status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/frameworks/download")
+async def download_frameworks(frameworks: Optional[list] = None):
+    """
+    Download frameworks from CDN to local storage.
+    
+    Args:
+        frameworks: List of framework keys to download (None = all)
+    """
+    try:
+        manager = get_framework_manager()
+        
+        if frameworks:
+            # Download specific frameworks
+            results = {}
+            for fw_key in frameworks:
+                results[fw_key] = manager.download_framework(fw_key)
+        else:
+            # Download all
+            results = manager.download_all()
+        
+        success_count = sum(1 for v in results.values() if v)
+        total_count = len(results)
+        
+        return {
+            "status": "success" if success_count == total_count else "partial",
+            "downloaded": success_count,
+            "total": total_count,
+            "results": results
+        }
+    
+    except Exception as e:
+        logger.error(f"Error downloading frameworks: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/frameworks/check-updates")
+async def check_framework_updates():
+    """Check which frameworks need updates."""
+    try:
+        manager = get_framework_manager()
+        needs_update = manager.check_updates()
+        
+        return {
+            "needs_update": needs_update,
+            "count": len(needs_update)
+        }
+    
+    except Exception as e:
+        logger.error(f"Error checking framework updates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

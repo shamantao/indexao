@@ -1,0 +1,92 @@
+{
+  "volumes": {
+    "pcloud_drive": {
+      "name": "pcloud_drive",
+      "mount_path": "/Users/phil/pCloud Drive",
+      "index_name": "pcloud_drive",
+      "file_patterns": [
+        "*.pdf",
+        "*.txt",
+        "*.doc",
+        "*.docx",
+        "*.odt",
+        "*.png",
+        "*.jpg",
+        "*.jpeg",
+        "*.tiff",
+        "*.md",
+        "*.html",
+        "*.json",
+        "*.xml"
+      ],
+      "exclude_patterns": [
+        "*/.*",
+        "*/.git/*",
+        "*/node_modules/*",
+        "*/__pycache__/*",
+        "*/venv/*",
+        "*/vendor/*",
+        "*.tmp",
+        "*.cache",
+        "*.log",
+        "*/Backup/*",
+        "*/Cache/*",
+        "*/.Trash/*"
+      ],
+      "enabled": true,
+      "last_scan": null,
+      "total_files": 0,
+      "indexed_files": 0
+    },
+    "dropbox": {
+      "name": "dropbox",
+      "mount_path": "/Users/phil/Library/CloudStorage/Dropbox",
+      "index_name": "dropbox",
+      "file_patterns": [
+        "*.pdf",
+        "*.txt",
+        "*.doc",
+        "*.docx",
+        "*.png",
+        "*.jpg"
+      ],
+      "exclude_patterns": [
+        "*/.*",
+        "*/.git/*",
+        "*/node_modules/*",
+        "*/__pycache__/*",
+        "*/venv/*",
+        "*.tmp",
+        "*.cache"
+      ],
+      "enabled": true,
+      "last_scan": null,
+      "total_files": 0,
+      "indexed_files": 0
+    },
+    "pcloud_sync": {
+      "name": "pcloud_sync",
+      "mount_path": "/Users/phil/pCloudSync",
+      "index_name": "pcloud_sync",
+      "file_patterns": [
+        "*.pdf",
+        "*.txt",
+        "*.md"
+      ],
+      "exclude_patterns": [
+        "*/.*",
+        "*/.git/*",
+        "*/node_modules/*",
+        "*/__pycache__/*",
+        "*/venv/*",
+        "*.tmp",
+        "*.cache"
+      ],
+      "enabled": true,
+      "last_scan": null,
+      "total_files": 0,
+      "indexed_files": 0
+    }
+  },
+  "last_updated": "2025-11-13T13:58:48.245534"
+}

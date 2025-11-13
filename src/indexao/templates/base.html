@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Indexao{% endblock %}</title>
+    
+    <!-- FontAwesome Icons with CDN fallback -->
+    <link rel="stylesheet" href="/static/css/vendor/fontawesome.min.css" onerror="this.onerror=null; this.href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'">
+    
+    <!-- Main Styles -->
+    <link rel="stylesheet" href="/static/css/styles.css?v=1.1.0">
+    
+    <!-- Alpine.js with CDN fallback -->
+    <script defer src="/static/js/vendor/alpine.min.js" onerror="this.onerror=null; this.remove(); loadAlpineCDN()"></script>
+    <script>
+    function loadAlpineCDN() {
+        console.warn('Alpine.js local file failed, loading from CDN');
+        const script = document.createElement('script');
+        script.defer = true;
+        script.src = 'https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js';
+        document.head.appendChild(script);
+    }
+    </script>
+    
+    <!-- HTMX with CDN fallback -->
+    <script src="/static/js/vendor/htmx.min.js" onerror="this.onerror=null; this.remove(); loadHtmxCDN()"></script>
+    <script>
+    function loadHtmxCDN() {
+        console.warn('HTMX local file failed, loading from CDN');
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js';
+        document.head.appendChild(script);
+    }
+    </script>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Header Component -->
+    {% include 'components/header.html' %}
+    
+    <!-- Main Layout with Sidebar -->
+    <div class="main-layout">
+        <!-- Sidebar Component (optional per page) -->
+        {% if show_sidebar %}
+        {% include 'components/sidebar.html' %}
+        {% endif %}
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="container">
+                <!-- Alert/Message Area -->
+                <div id="alert" class="alert" style="display: none;"></div>
+                
+                <!-- Page Content -->
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+    
+    <!-- Footer Component -->
+    {% include 'components/footer.html' %}
+    
+    <!-- Global Scripts -->
+    <script>
+        // Global Alpine.js data
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('app', {
+                version: '0.3.0-dev',
+                apiUrl: window.location.origin
+            });
+        });
+        
+        // Global utility functions
+        function showAlert(message, type = 'info') {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+        
+        // HTMX error handling
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            showAlert('Erreur de connexion au serveur', 'error');
+        });
+    </script>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,44 +1,10 @@
-<!DOCTYPE html>
-<html lang="fr" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Search - Indexao</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/css/styles.css?v=1.0.2">
-</head>
-<body>
-    <!-- Header -->
-    <header class="header">
-        <div class="header-content">
-            <div class="logo">
-                <div class="logo-icon">
-                    <i class="fas fa-database"></i>
-                </div>
-                <h1>Indexao</h1>
-            </div>
-            <nav class="header-nav">
-                <a href="/">
-                    <i class="fas fa-upload"></i>
-                    Upload
-                </a>
-                <a href="/documents">
-                    <i class="fas fa-file-alt"></i>
-                    Documents
-                </a>
-                <a href="/search" class="active">
-                    <i class="fas fa-search"></i>
-                    Search
-                </a>
-                <a href="/config">
-                    <i class="fas fa-cog"></i>
-                    Config
-                </a>
-            </nav>
-        </div>
-    </header>
-    
-    <div class="container">
+{% extends "base.html" %}
+
+{% set active_page = "search" %}
+
+{% block title %}Search - Indexao{% endblock %}
+
+{% block content %}
         <!-- Search Card -->
         <div class="card">
             <h2>
@@ -144,12 +110,8 @@
                 </ul>
             </div>
         </div>
-    </div>
-    
-    <footer>
-        <p>Indexao v0.1.0 - Document Indexing System | Built with FastAPI</p>
-    </footer>
-    
-    <script src="/static/js/search.js?v=1.0.3"></script>
-</body>
-</html>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/search.js?v=1.0.3"></script>
+{% endblock %}

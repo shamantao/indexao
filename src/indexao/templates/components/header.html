@@ -1,0 +1,113 @@
+<!-- Indexao Header Component -->
+<header class="header">
+    <div class="header-content">
+        <!-- Logo -->
+        <div class="logo">
+            <a href="/search" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 0.5rem;">
+                <div class="logo-icon">
+                    <i class="fas fa-database"></i>
+                </div>
+                <h1>Indexao</h1>
+            </a>
+        </div>
+        
+        <!-- Main Navigation -->
+        <nav class="header-nav">
+            <a href="/search" class="{% if active_page == 'search' %}active{% endif %}">
+                <i class="fas fa-search"></i>
+                Search
+            </a>
+            <a href="/documents" class="{% if active_page == 'documents' %}active{% endif %}">
+                <i class="fas fa-file-alt"></i>
+                Documents
+            </a>
+            <a href="/upload" class="{% if active_page == 'upload' %}active{% endif %}">
+                <i class="fas fa-upload"></i>
+                Upload
+            </a>
+            <a href="/config" class="{% if active_page == 'config' %}active{% endif %}">
+                <i class="fas fa-cog"></i>
+                Config
+            </a>
+        </nav>
+        
+        <!-- Quick Actions -->
+        <div class="header-actions" x-data="{ showStatus: false }">
+            <!-- API Status Indicator -->
+            <button 
+                @click="showStatus = !showStatus"
+                class="status-btn"
+                title="API Status"
+            >
+                <i class="fas fa-circle" style="color: var(--accent-secondary); font-size: 0.6em;"></i>
+            </button>
+            
+            <!-- Status Dropdown -->
+            <div 
+                x-show="showStatus" 
+                @click.away="showStatus = false"
+                class="status-dropdown"
+                style="display: none;"
+            >
+                <div class="status-item">
+                    <i class="fas fa-server"></i>
+                    <span>API: Online</span>
+                </div>
+                <div class="status-item">
+                    <i class="fas fa-database"></i>
+                    <span>DB: Connected</span>
+                </div>
+                <div class="status-item">
+                    <i class="fas fa-search"></i>
+                    <span>Search: Ready</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<style>
+.header-actions {
+    position: relative;
+}
+
+.status-btn {
+    background: transparent;
+    border: none;
+    padding: 0.5rem;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.status-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.status-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 0.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.5rem;
+    min-width: 200px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+.status-item i {
+    color: var(--accent-secondary);
+}
+</style>

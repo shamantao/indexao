@@ -18,6 +18,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Metadata extraction
 - [ ] UI for results visualization
 
+### In Progress - November 13, 2025
+
+#### Framework Manager - Local JS/CSS with CDN Fallback
+
+**Status**: ✅ Complete
+
+Created comprehensive framework management system for frontend dependencies:
+
+- **Local Storage**: Alpine.js (44KB), HTMX (47KB), FontAwesome (100KB) stored in `/static/js|css/vendor/`
+- **Automatic Fallback**: CDN loading if local files fail via `onerror` handlers
+- **Version Management**: JSON state tracking with download dates and sizes
+- **Update System**: 30-day refresh cycle with API endpoints
+- **REST API**: 
+  - `GET /api/frameworks/status` - Check availability and versions
+  - `POST /api/frameworks/download` - Download specific or all frameworks
+  - `GET /api/frameworks/check-updates` - Find outdated frameworks
+
+**Files Created**:
+- `src/indexao/framework_manager.py` (339 lines) - Core manager with Framework class
+- Updated `src/indexao/templates/base.html` - Fallback script tags
+- Updated `src/indexao/webui.py` - Added 3 API routes
+
+**Benefits**:
+- ✅ Offline development capability
+- ✅ Faster page loads (no external requests)
+- ✅ Version pinning and consistency
+- ✅ Automatic failover to CDN
+- ✅ Integration with PluginManager architecture
+
+#### Cloud Volume Management UI
+
+**Status**: ✅ Complete
+
+Added complete interface for managing multiple cloud storage volumes:
+
+- **3-Tab Config Page**: Indexao Settings | Cloud Volumes | Meilisearch Indexes
+- **Volume Cards**: Name, path, mount status, progress bars, file counts
+- **Add Volume Modal**: Name, path, index, file patterns with validation
+- **Actions**: Scan Now, Delete per volume
+- **API Routes** (4 endpoints):
+  - `GET /api/cloud/volumes` - List all volumes with status
+  - `POST /api/cloud/volumes` - Add new volume
+  - `POST /api/cloud/volumes/{name}/scan` - Trigger progressive scan
+  - `DELETE /api/cloud/volumes/{name}` - Remove volume
+
+**Files Updated**:
+- `src/indexao/templates/config.html` - Added cloud tab, modal, JS functions
+- `src/indexao/webui.py` - Added 4 cloud volume API routes (lines 817-932)
+
+**CSS Enhancements**:
+- `.modal` and `.modal.active` classes for Alpine.js modals
+- `.badge-success` and `.badge-false` for mount status indicators
+- `.close-button` styling for modal close actions
+- Progress bar styles with smooth transitions
+
 **Target**: MVP Functional - Real usage ready
 
 ---
