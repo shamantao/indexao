@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "indexao"
-version = "0.2.0-dev"
+dynamic = ["version"]
 description = "Hybrid Rust-Python document processing pipeline (Apache Arrow + Polars)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -54,6 +54,9 @@ Changelog = "https://github.com/example/indexao/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
 
 [tool.setuptools.package-data]
 indexao = ["py.typed"]

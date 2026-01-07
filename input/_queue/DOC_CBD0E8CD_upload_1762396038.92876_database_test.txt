@@ -1,1 +1,0 @@
-Testing database persistence: This document should be saved to SQLite with all metadata, translations, and processing info.

@@ -156,7 +156,7 @@ class LoggingConfig:
     console_enabled: bool = True
     file_enabled: bool = True
     json_enabled: bool = False
-    log_dir: str = "logs"
+    log_dir: str = "data/logs"
     rotation_when: str = "midnight"  # midnight, weekly, size
     rotation_interval: int = 1
     rotation_backup_count: int = 7
@@ -234,9 +234,25 @@ class Config:
     volumes_root: str = "_Volumes"  # Where user volumes and test data are located
     
     # Additional sections
-    input_dir: str = "input"
-    output_dir: str = "output"
-    temp_dir: str = "temp"
+    input_dir: str = "data/inbox"
+    queue_dir: str = "data/queue"
+    output_dir: str = "data/archive"
+    temp_dir: str = "data/temp"
+
+    @property
+    def db_path(self) -> Path:
+        """Path to SQLite database."""
+        # Simple robust logic: if index_root is set, use it/db, else data/db
+        # Note: index_root usually points to 'data' in config.toml
+        root = Path(self.index_root)
+        if root.name == "data":
+             return root / "db" / "indexao.db"
+        return Path("data/db/indexao.db")
+
+    @property
+    def throttle_config_path(self) -> Path:
+        """Path to throttling configuration."""
+        return self.db_path.parent / "throttling.json"
     
     def __repr__(self) -> str:
         """String representation."""
@@ -286,15 +302,20 @@ def _find_config_file(config_path: Optional[Path] = None) -> Path:
             return path
         logger.warning(f"INDEXAO_CONFIG points to non-existent file: {env_path}")
     
-    # 3. ./config.toml
+    # 3. ./config/config.toml (Standard location)
+    standard_config = Path("config/config.toml")
+    if standard_config.exists():
+        return standard_config
+
+    # 4. ./config.toml (Legacy/Root location)
     local_config = Path("config.toml")
     if local_config.exists():
         return local_config
     
-    # 4. ./config.example.toml
-    example_config = Path("config.example.toml")
+    # 5. ./config/config.example.toml
+    example_config = Path("config/config.example.toml")
     if example_config.exists():
-        logger.info("Using config.example.toml (no config.toml found)")
+        logger.info("Using config/config.example.toml (no main config found)")
         return example_config
     
     # 5. ~/.indexao/config.toml
@@ -422,7 +443,7 @@ def _dict_to_config(config_dict: Dict[str, Any]) -> Config:
         console_enabled=logging_dict.get("console", {}).get("enabled", True),
         file_enabled=logging_dict.get("file", {}).get("enabled", True),
         json_enabled=logging_dict.get("json", {}).get("enabled", False),
-        log_dir=logging_dict.get("file", {}).get("dir", "logs"),
+        log_dir=logging_dict.get("file", {}).get("dir", "data/logs"),
         rotation_when=logging_dict.get("file", {}).get("rotation_when", "midnight"),
         rotation_interval=logging_dict.get("file", {}).get("rotation_interval", 1),
         rotation_backup_count=logging_dict.get("file", {}).get("backup_count", 7),
@@ -483,9 +504,10 @@ def _dict_to_config(config_dict: Dict[str, Any]) -> Config:
         index_root=paths_section.get("index_root", "index"),
         sources_root=paths_section.get("sources_root", "_sources"),
         volumes_root=paths_section.get("volumes_root", "_Volumes"),
-        input_dir=config_dict.get("input_dir", "input"),
-        output_dir=config_dict.get("output_dir", "output"),
-        temp_dir=config_dict.get("temp_dir", "temp")
+        input_dir=config_dict.get("input_dir", "data/inbox"),
+        queue_dir=config_dict.get("queue_dir", "data/queue"),
+        output_dir=config_dict.get("output_dir", "data/archive"),
+        temp_dir=config_dict.get("temp_dir", "data/temp")
     )
 
 

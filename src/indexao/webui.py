@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
+import threading
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
@@ -66,6 +67,10 @@ app.include_router(pipeline_router)
 # Include search routes
 from indexao.search_routes import router as search_router
 app.include_router(search_router)
+
+# Track ongoing scans
+_active_scans: Dict[str, Dict[str, Any]] = {}
+_scan_lock = threading.Lock()
 
 
 @app.on_event("startup")
@@ -187,6 +192,16 @@ async def search_page(request: Request):
     return templates.TemplateResponse("search.html", {
         "request": request,
         "title": "Search - Indexao",
+        "version": "0.3.0-dev"
+    })
+
+
+@app.get("/monitoring", response_class=HTMLResponse)
+async def monitoring_page(request: Request):
+    """Real-time monitoring page."""
+    return templates.TemplateResponse("monitoring.html", {
+        "request": request,
+        "title": "Monitoring - Indexao",
         "version": "0.3.0-dev"
     })
 
@@ -600,7 +615,8 @@ async def list_documents(
         offset: Offset for pagination (default: 0)
     """
     try:
-        db = DocumentDatabase("data/indexao.db")
+        config = get_config()
+        db = DocumentDatabase(str(config.db_path))
         
         # Parse status filter
         doc_status = None
@@ -651,7 +667,8 @@ async def get_document(doc_id: str) -> Dict[str, Any]:
         doc_id: Document ID
     """
     try:
-        db = DocumentDatabase("data/indexao.db")
+        config = get_config()
+        db = DocumentDatabase(str(config.db_path))
         document = db.get_document(doc_id)
         
         if not document:
@@ -673,7 +690,8 @@ async def get_document(doc_id: str) -> Dict[str, Any]:
 async def get_statistics() -> Dict[str, Any]:
     """Get database statistics."""
     try:
-        db = DocumentDatabase("data/indexao.db")
+        config = get_config()
+        db = DocumentDatabase(str(config.db_path))
         
         total = db.count_documents()
         completed = db.count_documents(DocStatus.COMPLETED)
@@ -900,9 +918,19 @@ async def add_cloud_volume(request: Request):
 
 @app.post("/api/cloud/volumes/{volume_name}/scan")
 async def scan_cloud_volume(volume_name: str):
-    """Trigger a scan of a specific cloud volume."""
+    """Trigger a scan of a specific cloud volume (asynchronous)."""
     try:
         from indexao.cloud_indexer import setup_default_volumes
+        
+        # Check if scan already running
+        with _scan_lock:
+            if volume_name in _active_scans:
+                return {
+                    "status": "already_running",
+                    "message": f"Scan already in progress for {volume_name}",
+                    "scan_info": _active_scans[volume_name]
+                }
+        
         indexer = setup_default_volumes()
         
         volume = indexer.state.volumes.get(volume_name)
@@ -912,16 +940,60 @@ async def scan_cloud_volume(volume_name: str):
         if not indexer.is_mounted(volume):
             raise HTTPException(status_code=400, detail=f"Volume not mounted: {volume_name}")
         
-        # Start scan (this will be async in production)
-        result = indexer.index_volume_progressive(volume)
+        # Mark scan as active
+        with _scan_lock:
+            _active_scans[volume_name] = {
+                "started_at": datetime.now().isoformat(),
+                "status": "running",
+                "progress": 0,
+                "total": volume.total_files
+            }
         
-        return result
+        # Start scan in background thread
+        def run_scan():
+            try:
+                logger.info(f"Starting background scan for {volume_name}")
+                result = indexer.index_volume_progressive(volume)
+                
+                with _scan_lock:
+                    _active_scans[volume_name]["status"] = "completed"
+                    _active_scans[volume_name]["completed_at"] = datetime.now().isoformat()
+                    _active_scans[volume_name]["result"] = result
+                
+                logger.info(f"✓ Background scan completed for {volume_name}: {result}")
+            except Exception as e:
+                logger.error(f"Error in background scan for {volume_name}: {e}")
+                with _scan_lock:
+                    _active_scans[volume_name]["status"] = "error"
+                    _active_scans[volume_name]["error"] = str(e)
+        
+        thread = threading.Thread(target=run_scan, daemon=True)
+        thread.start()
+        
+        return {
+            "status": "started",
+            "message": f"Scan started for {volume_name}",
+            "volume": volume_name,
+            "scan_info": _active_scans[volume_name]
+        }
     
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error scanning cloud volume {volume_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/cloud/volumes/{volume_name}/scan/status")
+async def get_scan_status(volume_name: str):
+    """Get the status of an ongoing or completed scan."""
+    with _scan_lock:
+        if volume_name not in _active_scans:
+            return {
+                "status": "no_scan",
+                "message": "No scan in progress or completed recently"
+            }
+        return _active_scans[volume_name]
 
 
 @app.delete("/api/cloud/volumes/{volume_name}")
@@ -943,6 +1015,119 @@ async def delete_cloud_volume(volume_name: str):
         raise
     except Exception as e:
         logger.error(f"Error deleting cloud volume {volume_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Real-Time Monitoring API
+# ============================================================================
+
+@app.get("/api/monitoring/realtime")
+async def get_realtime_monitoring():
+    """Get comprehensive real-time monitoring data."""
+    try:
+        from indexao.database import DocumentDatabase
+        
+        # Meilisearch status
+        meilisearch_data = {}
+        meilisearch_url = "http://localhost:7700"
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                # Health check
+                health_resp = await client.get(f"{meilisearch_url}/health")
+                meilisearch_data["status"] = "available" if health_resp.status_code == 200 else "unavailable"
+                meilisearch_data["url"] = meilisearch_url
+                
+                # Version
+                version_resp = await client.get(f"{meilisearch_url}/version")
+                if version_resp.status_code == 200:
+                    version_data = version_resp.json()
+                    meilisearch_data["version"] = version_data.get("pkgVersion", "N/A")
+                
+                # Indexes with stats
+                indexes_resp = await client.get(f"{meilisearch_url}/indexes")
+                indexes = []
+                total_docs = 0
+                
+                if indexes_resp.status_code == 200:
+                    indexes_data = indexes_resp.json()
+                    for idx in indexes_data.get("results", []):
+                        stats_resp = await client.get(f"{meilisearch_url}/indexes/{idx['uid']}/stats")
+                        if stats_resp.status_code == 200:
+                            stats = stats_resp.json()
+                            idx["numberOfDocuments"] = stats.get("numberOfDocuments", 0)
+                            idx["isIndexing"] = stats.get("isIndexing", False)
+                            total_docs += idx["numberOfDocuments"]
+                        indexes.append(idx)
+                
+                meilisearch_data["indexes"] = indexes
+                meilisearch_data["total_documents"] = total_docs
+        except Exception as e:
+            logger.error(f"Error getting Meilisearch data: {e}")
+            meilisearch_data["status"] = "error"
+            meilisearch_data["error"] = str(e)
+        
+        # Queue statistics
+        db = DocumentDatabase()
+        queue_stats = {}
+        try:
+            with db._connection() as conn:
+                # Global stats
+                cursor = conn.execute("""
+                    SELECT status, COUNT(*) as count
+                    FROM index_queue
+                    GROUP BY status
+                """)
+                global_stats = {"total": 0, "done": 0, "pending": 0, "processing": 0, "error": 0}
+                for row in cursor:
+                    status = row["status"]
+                    count = row["count"]
+                    global_stats[status] = count
+                    global_stats["total"] += count
+                
+                # Per volume stats
+                cursor = conn.execute("""
+                    SELECT volume, status, COUNT(*) as count
+                    FROM index_queue
+                    GROUP BY volume, status
+                    ORDER BY volume
+                """)
+                by_volume = {}
+                for row in cursor:
+                    volume = row["volume"]
+                    status = row["status"]
+                    count = row["count"]
+                    
+                    if volume not in by_volume:
+                        by_volume[volume] = {"total": 0, "done": 0, "pending": 0, "processing": 0, "error": 0}
+                    
+                    by_volume[volume][status] = count
+                    by_volume[volume]["total"] += count
+                
+                queue_stats = {
+                    **global_stats,
+                    "by_volume": by_volume
+                }
+        except Exception as e:
+            logger.error(f"Error getting queue stats: {e}")
+            queue_stats["error"] = str(e)
+        
+        # Active scans
+        active_scans = {}
+        with _scan_lock:
+            active_scans = {k: v for k, v in _active_scans.items() if v.get("status") == "running"}
+        
+        return {
+            "meilisearch": meilisearch_data,
+            "indexes": meilisearch_data.get("indexes", []),
+            "total_documents": meilisearch_data.get("total_documents", 0),
+            "queue": queue_stats,
+            "active_scans": active_scans,
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        logger.error(f"Error in realtime monitoring: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

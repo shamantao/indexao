@@ -1,0 +1,1 @@
+Testing Sprint 1 P2: All three adapters (OCR, Translator, Search) are now properly integrated via the adapter pattern from Sprint 0.

@@ -730,14 +730,47 @@ function configManager() {
                 if (!response.ok) throw new Error('Failed to start scan');
 
                 const data = await response.json();
-                showAlert('Scan démarré. Cela peut prendre du temps...', 'success');
                 
-                // Reload volumes to show progress
-                setTimeout(() => this.loadCloudVolumes(), 2000);
+                if (data.status === 'already_running') {
+                    showAlert('Un scan est déjà en cours pour ce volume', 'warning');
+                } else if (data.status === 'started') {
+                    showAlert('Scan démarré en arrière-plan. Rechargement automatique toutes les 5s...', 'success');
+                    
+                    // Poll status every 5 seconds
+                    this.pollScanStatus(name);
+                }
+                
+                // Reload volumes immediately to show initial state
+                this.loadCloudVolumes();
             } catch (error) {
                 console.error('Error scanning volume:', error);
                 showAlert('Erreur lors du lancement du scan', 'error');
             }
+        },
+        
+        async pollScanStatus(name) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/cloud/volumes/${name}/scan/status`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'completed') {
+                        clearInterval(interval);
+                        showAlert(`Scan terminé pour ${name}!`, 'success');
+                        this.loadCloudVolumes();
+                    } else if (data.status === 'error') {
+                        clearInterval(interval);
+                        showAlert(`Erreur lors du scan: ${data.error}`, 'error');
+                        this.loadCloudVolumes();
+                    } else if (data.status === 'running') {
+                        // Update UI with progress if available
+                        this.loadCloudVolumes();
+                    }
+                } catch (error) {
+                    console.error('Error polling scan status:', error);
+                    clearInterval(interval);
+                }
+            }, 5000); // Poll every 5 seconds
         },
         
         async deleteVolume(name) {

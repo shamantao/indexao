@@ -127,7 +127,7 @@ class DocumentProcessor:
         self.upload_handler = upload_handler
         
         # Initialize database
-        self.db = DocumentDatabase("data/indexao.db")
+        self.db = DocumentDatabase(str(config.db_path))
         logger.info(f"✓ Database initialized")
         
         # Initialize adapters based on configuration

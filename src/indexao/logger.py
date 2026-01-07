@@ -218,9 +218,17 @@ class LoggerManager:
         log_level = os.getenv('INDEXAO_LOG_LEVEL', 'INFO').upper()
         
         # Get log directory
-        # Priority: 1. Parameter, 2. Env var, 3. Default 'logs'
+        # Priority: 1. Parameter, 2. Env var, 3. Default 'data/logs' (previously 'logs')
         if log_dir is None:
-            log_dir = os.getenv('INDEXAO_LOG_DIR', 'logs')
+            # Check for legacy logs directory
+            legacy_logs = Path("logs")
+            default_logs = "data/logs"
+            
+            # Use env var if set
+            log_dir = os.getenv('INDEXAO_LOG_DIR')
+            
+            if log_dir is None:
+               log_dir = default_logs
         
         self._log_dir = Path(log_dir).expanduser().resolve()
         self._log_dir.mkdir(parents=True, exist_ok=True)

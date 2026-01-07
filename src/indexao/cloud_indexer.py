@@ -11,6 +11,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import logging
+import httpx
 
 from indexao.logger import get_logger
 from indexao.scanner import scan_directory
@@ -99,15 +100,92 @@ class CloudIndexer:
     
     def __init__(
         self,
-        state_file: Path = Path("data/cloud_indexer_state.json"),
+        state_file: Optional[Path] = None,
         batch_size: int = 100,
-        check_interval: int = 60
+        check_interval: int = 60,
+        meilisearch_url: str = "http://localhost:7700"
     ):
+        from indexao.config import get_config
+        try:
+            config = get_config()
+            self.db_path = config.db_path
+            self.throttle_path = config.throttle_config_path
+            if state_file is None:
+                state_file = config.db_path.parent / "cloud_indexer_state.json"
+        except RuntimeError:
+             # Fallback if config not loaded yet (should not happen in normal run)
+             self.db_path = Path("data/db/indexao.db")
+             self.throttle_path = Path("data/db/throttling.json")
+             if state_file is None:
+                 state_file = Path("data/db/cloud_indexer_state.json")
+
         self.state = CloudIndexerState(state_file)
         self.batch_size = batch_size
         self.check_interval = check_interval
+        self.meilisearch_url = meilisearch_url
+        from indexao.database import DocumentDatabase
+        self.db = DocumentDatabase(str(self.db_path))
         self.processor = None
-        self.db = None
+        # Throttling config
+        self.throttle = self._load_throttle_config()
+        logger.info(f"CloudIndexer initialized: Meilisearch at {meilisearch_url}")
+
+    def _load_throttle_config(self) -> Dict[str, int]:
+        cfg_path = self.throttle_path
+        if cfg_path.exists():
+            try:
+                import json
+                with open(cfg_path) as f:
+                    data = json.load(f)
+                return {
+                    'batch_size': data.get('batch_size', self.batch_size),
+                    'sleep_ms': data.get('sleep_ms', 1000),
+                    'max_docs_per_minute': data.get('max_docs_per_minute', 5000)
+                }
+            except Exception as e:
+                logger.error(f"Failed loading throttle config: {e}")
+        # Defaults
+        return {'batch_size': self.batch_size, 'sleep_ms': 1000, 'max_docs_per_minute': 5000}
+
+    def _save_throttle_config(self):
+        import json
+        cfg_path = self.throttle_path
+        try:
+            cfg_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(cfg_path, 'w') as f:
+                json.dump(self.throttle, f, indent=2)
+            logger.info("✓ Throttle config saved")
+        except Exception as e:
+            logger.error(f"Failed saving throttle config: {e}")
+        
+    async def ensure_index_exists(self, index_name: str) -> bool:
+        """Ensure that a Meilisearch index exists, create it if not."""
+        try:
+            async with httpx.AsyncClient() as client:
+                # Check if index exists
+                response = await client.get(f"{self.meilisearch_url}/indexes/{index_name}")
+                
+                if response.status_code == 200:
+                    logger.debug(f"Index {index_name} already exists")
+                    return True
+                
+                # Create index
+                logger.info(f"Creating index: {index_name}")
+                response = await client.post(
+                    f"{self.meilisearch_url}/indexes",
+                    json={"uid": index_name, "primaryKey": "id"}
+                )
+                
+                if response.status_code in (200, 201, 202):
+                    logger.info(f"✓ Index {index_name} created successfully")
+                    return True
+                else:
+                    logger.error(f"Failed to create index {index_name}: {response.status_code} - {response.text}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"Error ensuring index {index_name} exists: {e}")
+            return False
         
     def add_volume(
         self,
@@ -118,6 +196,21 @@ class CloudIndexer:
         exclude_patterns: Optional[List[str]] = None
     ) -> CloudVolume:
         """Add a cloud volume to track."""
+        # Check if volume already exists - preserve its state
+        if name in self.state.volumes:
+            existing = self.state.volumes[name]
+            logger.debug(f"Volume {name} already exists, preserving state (total={existing.total_files}, indexed={existing.indexed_files})")
+            # Update paths/patterns if needed, but keep progress
+            existing.mount_path = mount_path
+            existing.index_name = index_name
+            if file_patterns:
+                existing.file_patterns = file_patterns
+            if exclude_patterns:
+                existing.exclude_patterns = exclude_patterns
+            # No need to save - state unchanged except paths
+            return existing
+        
+        # New volume - create with defaults
         if file_patterns is None:
             file_patterns = ['*.pdf', '*.txt', '*.doc', '*.docx', '*.png', '*.jpg', '*.jpeg']
         
@@ -199,47 +292,165 @@ class CloudIndexer:
             volume.total_files = len(filtered_files)
             self.state.update_volume(volume)
             
+            # Populate persistent queue
+            for file_path in filtered_files:
+                try:
+                    stat = file_path.stat()
+                    self.db.index_queue_add(
+                        volume=volume.name,
+                        path=str(file_path),
+                        size=stat.st_size,
+                        modified=datetime.fromtimestamp(stat.st_mtime).isoformat()
+                    )
+                except Exception as e:
+                    logger.error(f"Queue add failed for {file_path}: {e}")
+
+            logger.info(f"Queued {len(filtered_files)} files for volume {volume.name}")
             return filtered_files
             
         except Exception as e:
             logger.error(f"Error scanning volume {volume.name}: {e}")
             return []
-    
-    def index_batch(
-        self,
-        volume: CloudVolume,
-        files: List[Path],
-        start_idx: int = 0
-    ) -> int:
-        """
-        Index a batch of files.
-        Returns the number of files successfully indexed.
-        """
-        batch = files[start_idx:start_idx + self.batch_size]
-        
-        if not batch:
-            return 0
-        
-        logger.info(f"Indexing batch {start_idx}-{start_idx + len(batch)} of {len(files)} files")
-        
-        indexed_count = 0
-        
-        for file_path in batch:
+
+    def _prepare_docs(self, volume: CloudVolume, queue_rows: List) -> List[Dict]:
+        documents = []
+        for row in queue_rows:
+            file_path = Path(row['path'])
             try:
-                # TODO: Add file to processing queue
-                # For now, just log
-                logger.debug(f"Queued: {file_path}")
-                indexed_count += 1
+                # Generate safe ID: only alphanumeric, hyphens, underscores
+                # Remove parentheses and other invalid characters
+                safe_stem = ''.join(c if c.isalnum() or c in '-_' else '_' for c in file_path.stem)
+                file_hash = abs(hash(str(file_path)))  # Use absolute value to avoid negative sign
+                doc_id = f"{volume.name}_{safe_stem}_{file_hash}"
                 
+                # Ensure ID is not too long (max 511 bytes)
+                if len(doc_id.encode('utf-8')) > 511:
+                    doc_id = f"{volume.name}_{file_hash}"
+                
+                doc = {
+                    "id": doc_id,
+                    "volume": volume.name,
+                    "filename": file_path.name,
+                    "path": str(file_path),
+                    "extension": file_path.suffix.lower(),
+                    "size": file_path.stat().st_size if file_path.exists() else 0,
+                    "modified": datetime.fromtimestamp(file_path.stat().st_mtime).isoformat() if file_path.exists() else None,
+                    "indexed_at": datetime.now().isoformat()
+                }
+                documents.append(doc)
             except Exception as e:
-                logger.error(f"Error indexing {file_path}: {e}")
-        
-        # Update progress
-        volume.indexed_files = min(start_idx + indexed_count, volume.total_files)
-        volume.last_scan = datetime.now().isoformat()
-        self.state.update_volume(volume)
-        
-        return indexed_count
+                logger.error(f"Error preparing {file_path}: {e}")
+        return documents
+
+    def process_queue_batch(self, volume: CloudVolume) -> int:
+        """Process one batch from persistent queue with throttling."""
+        batch_size = self.throttle.get('batch_size', self.batch_size)
+        rows = self.db.index_queue_get_batch(volume.name, batch_size)
+        if not rows:
+            return 0
+        ids = [r['id'] for r in rows]
+        self.db.index_queue_mark_processing(ids)
+        documents = self._prepare_docs(volume, rows)
+        if not documents:
+            self.db.index_queue_mark_error(ids, 'prepare_failed')
+            return 0
+        ok = self.send_to_meilisearch_sync(volume.index_name, documents)
+        if ok:
+            self.db.index_queue_mark_done(ids)
+            volume.indexed_files = min(volume.indexed_files + len(documents), volume.total_files)
+            volume.last_scan = datetime.now().isoformat()
+            self.state.update_volume(volume)
+            return len(documents)
+        else:
+            self.db.index_queue_mark_error(ids, 'send_failed')
+            return 0
+    
+    async def _send_to_meilisearch(self, index_name: str, documents: List[Dict]) -> bool:
+        """[Deprecated in async context] Use sync variant to avoid asyncio.run issues."""
+        try:
+            await self.ensure_index_exists(index_name)
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{self.meilisearch_url}/indexes/{index_name}/documents",
+                    json=documents
+                )
+                return response.status_code in (200, 201, 202)
+        except Exception as e:
+            logger.error(f"Error (async) sending to Meilisearch: {e}")
+            return False
+
+    def ensure_index_exists_sync(self, index_name: str) -> bool:
+        """Ensure that a Meilisearch index exists (sync version)."""
+        try:
+            with httpx.Client(timeout=15.0) as client:
+                resp = client.get(f"{self.meilisearch_url}/indexes/{index_name}")
+                if resp.status_code == 200:
+                    return True
+                resp = client.post(
+                    f"{self.meilisearch_url}/indexes",
+                    json={"uid": index_name, "primaryKey": "id"}
+                )
+                return resp.status_code in (200, 201, 202)
+        except Exception as e:
+            logger.error(f"Error ensuring index (sync) {index_name}: {e}")
+            return False
+
+    def send_to_meilisearch_sync(self, index_name: str, documents: List[Dict]) -> bool:
+        """Send documents synchronously to Meilisearch and verify task completion."""
+        try:
+            if not self.ensure_index_exists_sync(index_name):
+                logger.error(f"Cannot ensure index exists: {index_name}")
+                return False
+            
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(
+                    f"{self.meilisearch_url}/indexes/{index_name}/documents",
+                    json=documents
+                )
+                
+                if response.status_code not in (200, 201, 202):
+                    logger.error(f"Meilisearch error: {response.status_code} - {response.text}")
+                    return False
+                
+                # Get task UID to check status
+                task_data = response.json()
+                task_uid = task_data.get("taskUid")
+                
+                if not task_uid:
+                    logger.warning(f"No taskUid returned, assuming success for {len(documents)} docs")
+                    return True
+                
+                # Wait for task completion (with timeout)
+                import time
+                max_wait = 10  # seconds
+                start = time.time()
+                
+                while time.time() - start < max_wait:
+                    task_resp = client.get(f"{self.meilisearch_url}/tasks/{task_uid}")
+                    if task_resp.status_code == 200:
+                        task_info = task_resp.json()
+                        status = task_info.get("status")
+                        
+                        if status == "succeeded":
+                            logger.debug(f"Successfully indexed {len(documents)} documents")
+                            return True
+                        elif status == "failed":
+                            error = task_info.get("error", {})
+                            logger.error(f"Meilisearch task failed: {error.get('message', 'Unknown error')}")
+                            logger.error(f"First failing doc ID: {documents[0].get('id') if documents else 'N/A'}")
+                            return False
+                        elif status in ("enqueued", "processing"):
+                            time.sleep(0.5)
+                            continue
+                    time.sleep(0.5)
+                
+                # Timeout - assume success but log warning
+                logger.warning(f"Task {task_uid} timeout after {max_wait}s, assuming success")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error sending to Meilisearch (sync): {e}")
+            return False
     
     def index_volume_progressive(self, volume: CloudVolume) -> Dict[str, Any]:
         """
@@ -264,19 +475,29 @@ class CloudIndexer:
                 'total_files': 0
             }
         
-        # Start indexing from last position
-        start_idx = volume.indexed_files
+        # Process queue based on throttling
         total_indexed = 0
-        
-        while start_idx < len(files):
-            batch_count = self.index_batch(volume, files, start_idx)
-            total_indexed += batch_count
-            start_idx += batch_count
-            
-            # Pause between batches to avoid overload
-            if start_idx < len(files):
-                logger.info(f"Progress: {start_idx}/{len(files)} ({start_idx/len(files)*100:.1f}%)")
-                time.sleep(1)  # 1 second between batches
+        docs_per_minute = 0
+        window_start = time.time()
+        max_per_minute = self.throttle.get('max_docs_per_minute', 5000)
+        sleep_ms = self.throttle.get('sleep_ms', 1000)
+        while True:
+            # Rate limit per minute
+            now = time.time()
+            if now - window_start >= 60:
+                window_start = now
+                docs_per_minute = 0
+            if docs_per_minute >= max_per_minute:
+                logger.info("Throttling: max docs per minute reached, sleeping")
+                time.sleep(5)
+                continue
+            count = self.process_queue_batch(volume)
+            if count == 0:
+                break
+            docs_per_minute += count
+            total_indexed += count
+            logger.info(f"Progress queue: {total_indexed}/{volume.total_files} ({(total_indexed/volume.total_files*100) if volume.total_files else 0:.1f}%)")
+            time.sleep(sleep_ms/1000.0)
         
         logger.info(f"✓ Completed indexing {volume.name}: {total_indexed} files")
         
@@ -284,7 +505,7 @@ class CloudIndexer:
             'status': 'success',
             'volume': volume.name,
             'files_indexed': total_indexed,
-            'total_files': len(files)
+            'total_files': volume.total_files
         }
     
     def run_daemon(self):

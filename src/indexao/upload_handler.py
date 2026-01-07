@@ -81,7 +81,8 @@ class UploadHandler:
         
         # Setup directories with Path Manager
         self.input_dir = Path(config.input_dir)
-        self.queue_dir = self.input_dir / "_queue"
+        self.queue_dir = Path(config.queue_dir)
+        self.input_dir.mkdir(parents=True, exist_ok=True)
         self.queue_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize path adapter for file operations

@@ -36,7 +36,7 @@ class DocumentDatabase:
     # Schema version for migrations
     SCHEMA_VERSION = 1
     
-    def __init__(self, db_path: str = "data/indexao.db"):
+    def __init__(self, db_path: str = "data/db/indexao.db"):
         """
         Initialize database connection.
         
@@ -148,6 +148,35 @@ class DocumentDatabase:
                 CREATE INDEX IF NOT EXISTS idx_queue_priority 
                 ON processing_queue(priority DESC, queued_at ASC)
             """)
+
+            # -----------------------------------------------------------------
+            # Indexing queue (persistent cloud volume indexing)
+            # -----------------------------------------------------------------
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS index_queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    volume TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    size INTEGER DEFAULT 0,
+                    modified TEXT,
+                    status TEXT NOT NULL DEFAULT 'pending', -- pending|processing|done|error
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    indexed_at TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(volume, path)
+                )
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_index_queue_status 
+                ON index_queue(status, volume)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_index_queue_volume 
+                ON index_queue(volume)
+            """)
+            logger.info("✓ Index queue schema ensured")
             
             logger.info("✓ Database schema initialized")
     
@@ -518,6 +547,7 @@ class DocumentDatabase:
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM processing_queue")
                 cursor.execute("DELETE FROM documents")
+                cursor.execute("DELETE FROM index_queue")
                 
                 logger.warning("⚠ Database cleared (all documents deleted)")
                 return True
@@ -525,3 +555,89 @@ class DocumentDatabase:
         except Exception as e:
             logger.error(f"Failed to clear database: {e}")
             return False
+
+    # ========================================================================
+    # INDEX QUEUE (Persistent cloud volume indexing)
+    # ========================================================================
+
+    def index_queue_add(self, volume: str, path: str, size: int = 0, modified: Optional[str] = None) -> bool:
+        """Add a file to the persistent indexing queue."""
+        try:
+            with self._connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT OR IGNORE INTO index_queue (volume, path, size, modified)
+                    VALUES (?, ?, ?, ?)
+                """, (volume, path, size, modified))
+                return True
+        except Exception as e:
+            logger.error(f"Failed to add to index queue {path}: {e}")
+            return False
+
+    def index_queue_get_batch(self, volume: str, limit: int) -> List[sqlite3.Row]:
+        """Fetch a batch of pending items for a volume."""
+        with self._connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM index_queue
+                WHERE volume = ? AND status = 'pending'
+                ORDER BY id ASC
+                LIMIT ?
+            """, (volume, limit))
+            return cursor.fetchall()
+
+    def index_queue_mark_processing(self, ids: List[int]) -> None:
+        if not ids:
+            return
+        with self._connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                UPDATE index_queue SET status='processing', attempts=attempts+1, updated_at=CURRENT_TIMESTAMP
+                WHERE id IN ({','.join(['?']*len(ids))})
+            """, ids)
+
+    def index_queue_mark_done(self, ids: List[int]) -> None:
+        if not ids:
+            return
+        with self._connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                UPDATE index_queue SET status='done', indexed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+                WHERE id IN ({','.join(['?']*len(ids))})
+            """, ids)
+
+    def index_queue_mark_error(self, ids: List[int], error: str) -> None:
+        if not ids:
+            return
+        with self._connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                UPDATE index_queue SET status='error', last_error=?, updated_at=CURRENT_TIMESTAMP
+                WHERE id IN ({','.join(['?']*len(ids))})
+            """, [error] + ids)
+
+    def index_queue_stats(self, volume: Optional[str] = None) -> Dict[str, int]:
+        with self._connection() as conn:
+            cursor = conn.cursor()
+            params = []
+            where = ''
+            if volume:
+                where = 'WHERE volume = ?'
+                params.append(volume)
+            cursor.execute(f"SELECT COUNT(*) FROM index_queue {where}", params)
+            total = cursor.fetchone()[0]
+            cursor.execute(f"SELECT COUNT(*) FROM index_queue {where} AND status='pending'" if volume else "SELECT COUNT(*) FROM index_queue WHERE status='pending'")
+            pending = cursor.fetchone()[0]
+            cursor.execute(f"SELECT COUNT(*) FROM index_queue {where} AND status='processing'" if volume else "SELECT COUNT(*) FROM index_queue WHERE status='processing'")
+            processing = cursor.fetchone()[0]
+            cursor.execute(f"SELECT COUNT(*) FROM index_queue {where} AND status='done'" if volume else "SELECT COUNT(*) FROM index_queue WHERE status='done'")
+            done = cursor.fetchone()[0]
+            cursor.execute(f"SELECT COUNT(*) FROM index_queue {where} AND status='error'" if volume else "SELECT COUNT(*) FROM index_queue WHERE status='error'")
+            errors = cursor.fetchone()[0]
+            return {
+                'total': total,
+                'pending': pending,
+                'processing': processing,
+                'done': done,
+                'error': errors
+            }
