@@ -105,6 +105,9 @@ class DocumentDatabase:
                     indexed INTEGER DEFAULT 0,
                     search_engine TEXT,
                     
+                    -- Content Addressable Storage (Sprint 2)
+                    file_hash TEXT,
+                    
                     -- Timestamps
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -148,6 +151,12 @@ class DocumentDatabase:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_queue_priority 
                 ON processing_queue(priority DESC, queued_at ASC)
+            """)
+            
+            # Hash Index (Sprint 2)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_documents_hash 
+                ON documents(file_hash)
             """)
 
             # -----------------------------------------------------------------
@@ -237,13 +246,16 @@ class DocumentDatabase:
                 metadata_json = json.dumps(document.metadata.to_dict()) if document.metadata else None
                 translations_json = json.dumps(document.translations)
                 
+                # Extract hash if available
+                file_hash = document.metadata.file_hash if document.metadata and hasattr(document.metadata, 'file_hash') else None
+
                 cursor.execute("""
                     INSERT INTO documents (
                         doc_id, content, title, metadata, translations,
                         status, current_stage, error_message,
-                        indexed, search_engine,
+                        indexed, search_engine, file_hash,
                         created_at, updated_at, processed_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     document.doc_id,
                     document.content,
@@ -255,6 +267,7 @@ class DocumentDatabase:
                     document.error_message,
                     1 if document.indexed else 0,
                     document.search_engine,
+                    file_hash,
                     document.created_at.isoformat(),
                     document.updated_at.isoformat(),
                     document.processed_at.isoformat() if document.processed_at else None,
@@ -304,6 +317,9 @@ class DocumentDatabase:
                 metadata_json = json.dumps(document.metadata.to_dict()) if document.metadata else None
                 translations_json = json.dumps(document.translations)
                 
+                # Extract hash if available
+                file_hash = document.metadata.file_hash if document.metadata and hasattr(document.metadata, 'file_hash') else None
+                
                 cursor.execute("""
                     UPDATE documents SET
                         content = ?,
@@ -315,6 +331,7 @@ class DocumentDatabase:
                         error_message = ?,
                         indexed = ?,
                         search_engine = ?,
+                        file_hash = ?,
                         updated_at = ?,
                         processed_at = ?
                     WHERE doc_id = ?
@@ -328,6 +345,7 @@ class DocumentDatabase:
                     document.error_message,
                     1 if document.indexed else 0,
                     document.search_engine,
+                    file_hash,
                     document.updated_at.isoformat(),
                     document.processed_at.isoformat() if document.processed_at else None,
                     document.doc_id,
@@ -532,6 +550,10 @@ class DocumentDatabase:
         metadata = None
         if row["metadata"]:
             metadata = DocumentMetadata.from_dict(json.loads(row["metadata"]))
+            
+            # Ensure hash consistency if it was in the column but not in JSON (migration edge case)
+            if "file_hash" in row.keys() and row["file_hash"] and not metadata.file_hash:
+                metadata.file_hash = row["file_hash"]
         
         translations = json.loads(row["translations"]) if row["translations"] else {}
         

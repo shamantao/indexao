@@ -254,12 +254,8 @@ class Config:
     @property
     def db_path(self) -> Path:
         """Path to SQLite database."""
-        # Simple robust logic: if index_root is set, use it/db, else data/db
-        # Note: index_root usually points to 'data' in config.toml
-        root = Path(self.index_root)
-        if root.name == "data":
-             return root / "db" / "indexao.db"
-        return Path("data/db/indexao.db")
+        # Always use index_root as the base for the database
+        return Path(self.index_root) / "db" / "indexao.db"
 
     @property
     def throttle_config_path(self) -> Path:

@@ -74,6 +74,12 @@ _active_scans: Dict[str, Dict[str, Any]] = {}
 _scan_lock = threading.Lock()
 
 
+@app.get("/api/docs")
+async def api_docs_redirect():
+    """Redirect to local MkDocs server."""
+    return RedirectResponse(url="http://localhost:8001")
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize configuration on startup."""
@@ -93,6 +99,21 @@ async def startup_event():
         config = load_config()
         logger.info(f"Configuration loaded: {config}")
         
+        # Load version from file
+        try:
+            # webui.py is in src/indexao/, so we go up 3 levels to reach root
+            version_file = Path(__file__).parent.parent.parent / "VERSION"
+            if version_file.exists():
+                app_version = version_file.read_text().strip()
+                templates.env.globals["version"] = app_version
+                logger.info(f"✓ Version loaded: {app_version}")
+            else:
+                logger.warning(f"Version file not found at {version_file}")
+                templates.env.globals["version"] = "0.4.0-dev"
+        except Exception as e:
+            logger.warning(f"Failed to load version: {e}")
+            templates.env.globals["version"] = "unknown"
+
         # Create required directories
         Path(config.input_dir).mkdir(parents=True, exist_ok=True)
         Path(config.output_dir).mkdir(parents=True, exist_ok=True)
