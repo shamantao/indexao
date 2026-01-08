@@ -244,3 +244,7 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Indexao Data
+data/
+!data/.keep
+config/com.indexao.cloud-indexer.plist

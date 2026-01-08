@@ -4,23 +4,25 @@
 
 Indexao is a modular, user-centric tool to index arbitrary file trees and enable unified multilingual search, full translated visualization (keeping structure), and export to JSON/Markdown.
 
-**Current Status**: Sprint 2 Complete ✅ - Plugin Manager with Dynamic Loading & UI  
-**Version**: 0.3.0-dev  
-**Next**: Sprint 3 (Real Adapters → MVP TESTABLE)
+**Current Status**: Sprint 3 Complete ✅ - Configuration UI Overhaul & Volume Management
+**Version**: 0.4.0
+**Next**: Sprint 4 (Indexer Optimization & Fast-Track)
 
 ---
 
 ## 🎯 Features
 
-### Current (Sprint 0-2 Complete)
+### Current (Sprint 0-3 Complete)
 
-- ✅ **Web UI**: Upload, Documents, Search, Config pages with dark mode
-- ✅ **Plugin Switcher UI**: Runtime adapter hot-swap in /config page
+- ✅ **Web UI**: Upload, Documents, Search, Configuration logic overhaul
+- ✅ **Configuration Page**: 
+    - Full Volume Management (Add/Scan/Delete Cloud Volumes)
+    - Meilisearch Index Management (Create/Delete/Configure)
+    - Integrated Server-Side File Browser
 - ✅ **Upload Progress**: Animated 5-stage pipeline visualization
 - ✅ **Document Management**: List with statistics, pagination, filtering, modals
-- ✅ **Search Interface**: Full-text search with query highlighting
 - ✅ **Plugin Manager**: Dynamic adapter loading, discovery, and hot-swap
-- ✅ **REST API**: 7 endpoints for plugin management (/api/plugins/\*)
+- ✅ **REST API**: Full config management endpoints (`/api/config`, `/api/cloud/volumes`, `/api/meilisearch/indexes`)
 - ✅ **Mock Adapters**: OCR, Translation, Search (for development/testing)
 - ✅ **Database**: SQLite with document model and metadata storage
 - ✅ **API Management**: Start/stop/reload script with health checks

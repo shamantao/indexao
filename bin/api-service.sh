@@ -14,8 +14,17 @@ PID_FILE="$PROJECT_DIR/data/indexao.pid"
 # Logs directory in data
 LOG_DIR="$PROJECT_DIR/data/logs"
 LOG_FILE="$LOG_DIR/webui.log"
-HOST="127.0.0.1"
-PORT="8000"
+# Configuration extraction du fichier TOML
+get_config_value() {
+    "$VENV_DIR/bin/python3" -c "import tomllib; print(tomllib.load(open('$PROJECT_DIR/config/config.toml', 'rb'))['api']['$1'])" 2>/dev/null
+}
+
+HOST=$(get_config_value "host")
+PORT=$(get_config_value "port")
+
+# Fallback defaults if extraction fails
+HOST=${HOST:-"127.0.0.1"}
+PORT=${PORT:-"8000"}
 
 # Couleurs pour l'affichage
 RED='\033[0;31m'

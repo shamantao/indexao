@@ -72,9 +72,11 @@ class DocumentMetadata:
     file_path: str
     file_size: int
     mime_type: str
+    file_hash: Optional[str] = None # Added for Sprint 2 (Hybrid Indexing)
     
     # Content information
     text_length: int = 0
+
     language: Optional[str] = None
     
     # OCR information (if applicable)
@@ -95,8 +97,10 @@ class DocumentMetadata:
             "file_path": self.file_path,
             "file_size": self.file_size,
             "mime_type": self.mime_type,
+            "file_hash": self.file_hash, # Added for Sprint 2
             "text_length": self.text_length,
             "language": self.language,
+
             "ocr_confidence": self.ocr_confidence,
             "ocr_engine": self.ocr_engine,
             "processing_duration": self.processing_duration,

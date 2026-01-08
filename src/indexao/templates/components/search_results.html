@@ -1,0 +1,35 @@
+{% if results %}
+<div class="results-grid">
+    {% for doc in results %}
+    <div class="result-card">
+        <div class="result-header">
+            <h3>
+                <a href="/doc/{{ doc.doc_id }}" class="doc-link">
+                    {% if doc.mime_type == 'application/pdf' %}
+                        <i class="fas fa-file-pdf text-danger"></i>
+                    {% else %}
+                        <i class="fas fa-file-alt text-primary"></i>
+                    {% endif %}
+                    {{ doc.title or doc.filename }}
+                </a>
+            </h3>
+            <span class="badge badge-outline">{{ doc.language }}</span>
+        </div>
+        
+        <p class="result-snippet">
+            {{ doc.content[:200] }}...
+        </p>
+
+        <div class="result-meta">
+            <small><i class="fas fa-folder"></i> {{ doc.path }}</small>
+            <small><i class="far fa-clock"></i> {{ doc.processed_at }}</small>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon"><i class="fas fa-search"></i></div>
+    <p>Aucun résultat trouvé pour cette recherche.</p>
+</div>
+{% endif %}

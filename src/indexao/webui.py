@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 import threading
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -25,11 +25,12 @@ import httpx
 from indexao.config import load_config, get_config, Config
 from indexao.logger import get_logger
 from indexao.upload_handler import UploadHandler, UploadError
+from indexao.services.fast_track import FastTrackService # Sprint 2
 from indexao.scanner import FileScanner, scan_directory
 from indexao.processor import DocumentProcessor, ProcessingStatus
 from indexao.database import DocumentDatabase
 from indexao.models.document import ProcessingStatus as DocStatus
-from indexao.framework_manager import get_framework_manager
+from indexao.framework_manager import get_framework_manager, ensure_frameworks_available
 from indexao.plugin_manager import PluginManager
 from indexao.plugin_routes import router as plugin_router, set_plugin_manager
 
@@ -78,6 +79,17 @@ async def startup_event():
     """Initialize configuration on startup."""
     try:
         logger.info("Starting Indexao Web UI...")
+        
+        # Ensure offline frameworks are available
+        logger.info("Checking frontend frameworks...")
+        try:
+            if ensure_frameworks_available():
+                logger.info("✓ Frontend frameworks ready (Alpine.js, HTMX, FontAwesome)")
+            else:
+                logger.warning("! Helper frameworks download failed - UI might degrade offline")
+        except Exception as e:
+             logger.error(f"Framework check failed: {e}")
+
         config = load_config()
         logger.info(f"Configuration loaded: {config}")
         
@@ -89,6 +101,9 @@ async def startup_event():
         # Initialize upload handler
         app.state.upload_handler = UploadHandler(config)
         
+        # Initialize FastTrack Service (Sprint 2 - Hybrid Indexing)
+        app.state.fast_track = FastTrackService()
+
         # Initialize document processor
         app.state.processor = DocumentProcessor(config, app.state.upload_handler)
         
@@ -117,12 +132,26 @@ async def startup_event():
         try:
             from indexao.search_routes import initialize_search_adapter
             config = get_config()
+            
+            # Robust config access for Meilisearch
+            # Assuming config structure matches TOML: plugins.search.meilisearch.host
+            try:
+                # Try explicit meilisearch config first
+                meili_host = config.plugins.search.meilisearch.host
+                # API Key is optional
+                meili_key = getattr(config.plugins.search.meilisearch, 'api_key', None)
+            except AttributeError:
+                # Fallback to flattened or default
+                meili_host = "http://localhost:7700"
+                meili_key = None
+                logger.warning("Using default Meilisearch config (config path not found)")
+
             initialize_search_adapter(
-                host=f"http://{config.plugins.search.host}:{config.plugins.search.port}",
-                api_key=config.plugins.search.api_key,
-                index_name=config.plugins.search.index_name
+                host=meili_host,
+                api_key=meili_key,
+                index_name="indexao_documents" # TODO: Make configurable
             )
-            logger.info("✓ Search API initialized (Meilisearch)")
+            logger.info(f"✓ Search API initialized (Meilisearch at {meili_host})")
         except Exception as e:
             logger.warning(f"Failed to initialize search API: {e}")
         
@@ -154,7 +183,7 @@ async def upload_page(request: Request):
     return templates.TemplateResponse("index.html", {
         "request": request,
         "title": "Indexao - Document Indexing",
-        "version": "0.3.0-dev",
+        "version": "0.4.0",
         "config": {
             "ocr_engine": config.plugins.ocr.engine,
             "translator_engine": config.plugins.translator.engine,
@@ -171,7 +200,7 @@ async def config_page(request: Request):
     return templates.TemplateResponse("config.html", {
         "request": request,
         "title": "Configuration",
-        "version": "0.3.0-dev",
+        "version": "0.4.0",
         "config": config
     })
 
@@ -182,7 +211,7 @@ async def documents_page(request: Request):
     return templates.TemplateResponse("documents.html", {
         "request": request,
         "title": "Documents - Indexao",
-        "version": "0.3.0-dev"
+        "version": "0.4.0"
     })
 
 
@@ -192,8 +221,65 @@ async def search_page(request: Request):
     return templates.TemplateResponse("search.html", {
         "request": request,
         "title": "Search - Indexao",
-        "version": "0.3.0-dev"
+        "version": "0.4.0"
     })
+
+
+@app.get("/search/results", response_class=HTMLResponse)
+async def search_results(
+    request: Request,
+    q: str = Query(..., description="Search query"),
+    lang: Optional[str] = Query(None)
+):
+    """HTMX endpoint for search results."""
+    from indexao.search_routes import get_search_adapter
+    try:
+        adapter = get_search_adapter()
+        # Ensure q is not empty
+        if not q.strip():
+            return HTMLResponse("")
+            
+        results = adapter.search(query=q, language=lang, limit=25)
+        return templates.TemplateResponse("components/search_results.html", {
+            "request": request,
+            "results": results
+        })
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        return HTMLResponse(f"<div class='alert alert-danger'>Error: {e}</div>")
+
+
+@app.get("/doc/{doc_id}", response_class=HTMLResponse)
+async def document_reader(request: Request, doc_id: str):
+    """Document reader page."""
+    from indexao.search_routes import get_search_adapter
+    try:
+        adapter = get_search_adapter()
+        doc = adapter.get_document(doc_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Ensure minimal fields for template
+        if not doc.get('title'): doc['title'] = doc.get('filename', 'Untitled')
+        
+        return templates.TemplateResponse("reader.html", {
+            "request": request,
+            "doc": doc
+        })
+    except Exception as e:
+        logger.error(f"Reader error: {e}")
+        # Mock document for testing layout if search fails
+        if request.query_params.get("mock"):
+             return templates.TemplateResponse("reader.html", {
+                "request": request,
+                "doc": {
+                    "doc_id": doc_id,
+                    "title": "Mock Document",
+                    "language": "en",
+                    "content_html": "<p>This is a <b>mock</b> document.</p>" * 20
+                }
+            })
+        raise HTTPException(status_code=404, detail="Document not found")
 
 
 @app.get("/monitoring", response_class=HTMLResponse)
@@ -202,7 +288,7 @@ async def monitoring_page(request: Request):
     return templates.TemplateResponse("monitoring.html", {
         "request": request,
         "title": "Monitoring - Indexao",
-        "version": "0.3.0-dev"
+        "version": "0.4.0"
     })
 
 
@@ -250,9 +336,10 @@ async def get_config_api() -> Dict[str, Any]:
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)) -> Dict[str, Any]:
     """
-    Upload a document for indexing.
+    Upload a document for indexing (Fast-Track).
     
-    Uses UploadHandler to validate, process, and queue files.
+    Uses FastTrackService to immediately index the document content
+    using a Hash-based ID strategy (Hybrid Indexing).
     
     Args:
         file: Uploaded file
@@ -260,55 +347,31 @@ async def upload_document(file: UploadFile = File(...)) -> Dict[str, Any]:
     Returns:
         Upload result with document ID and metadata
     """
-    temp_file = None
     try:
         # Validate filename
         if not file.filename:
             raise HTTPException(status_code=400, detail="No filename provided")
         
-        # Save to temporary file
-        config = get_config()
-        temp_dir = Path(config.temp_dir)
-        temp_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Received fast-track upload: {file.filename}")
         
-        temp_file = temp_dir / f"upload_{datetime.now().timestamp()}_{file.filename}"
-        content = await file.read()
-        temp_file.write_bytes(content)
+        # Use FastTrack Service
+        # Note: We pass the UploadFile directly. The service handles buffering/streaming.
+        result = await app.state.fast_track.handle_fast_track(file)
         
-        logger.info(f"Received upload: {file.filename} ({len(content)} bytes)")
-        
-        # Process upload using UploadHandler
-        upload_handler: UploadHandler = app.state.upload_handler
-        result = upload_handler.handle_upload(temp_file, file.filename)
-        
+        if result['status'] == 'error':
+             raise HTTPException(status_code=500, detail=result['message'])
+
         return {
             "status": "success",
-            "document_id": result['document_id'],
-            "filename": result['metadata']['original_filename'],
-            "size_bytes": result['metadata']['size_bytes'],
-            "mime_type": result['metadata']['mime_type'],
-            "checksum": result['metadata']['checksum'][:16],  # Short version
-            "message": result['message']
+            "document_id": result['doc_id'],
+            "filename": file.filename,
+            "hash": result['file_hash'],
+            "message": result.get('message', 'Document indexé avec succès')
         }
     
-    except UploadError as e:
-        logger.warning(f"Upload validation failed: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    
-    except HTTPException:
-        raise
-    
     except Exception as e:
-        logger.error(f"Upload failed: {e}", exc_info=True)
+        logger.error(f"Fast-Track upload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
-    
-    finally:
-        # Clean up temp file if it still exists
-        if temp_file and temp_file.exists():
-            try:
-                temp_file.unlink()
-            except Exception as e:
-                logger.warning(f"Failed to delete temp file: {e}")
 
 
 @app.get("/api/files")
@@ -1018,6 +1081,58 @@ async def delete_cloud_volume(volume_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/system/browse")
+async def browse_system(path: str = "."):
+    """List directories for browsing."""
+    try:
+        from pathlib import Path
+        import os
+        
+        # Security: Basic check to prevent escaping if needed? 
+        # For a local tool running as user, we usually want access to all user files.
+        
+        if path == "." or path == "":
+            p = Path.home()
+        else:
+            p = Path(path).resolve()
+            
+        if not p.exists():
+             raise HTTPException(status_code=404, detail="Path does not exist")
+        
+        if not p.is_dir():
+             p = p.parent
+
+        items = []
+        try:
+            # Add parent navigation
+            if p.parent != p:
+                 items.append({
+                    "name": "..",
+                    "path": str(p.parent),
+                    "type": "dir"
+                })
+
+            for entry in os.scandir(p):
+                if entry.is_dir() and not entry.name.startswith('.'):
+                    items.append({
+                        "name": entry.name,
+                        "path": entry.path,
+                        "type": "dir"
+                    })
+        except PermissionError:
+             pass
+            
+        items.sort(key=lambda x: x['name'].lower())
+        
+        return {
+            "current": str(p),
+            "items": items
+        }
+    except Exception as e:
+        logger.error(f"Browse error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # Real-Time Monitoring API
 # ============================================================================
@@ -1199,25 +1314,35 @@ async def check_framework_updates():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def run_server(host: str = "0.0.0.0", port: int = 8000, reload: bool = False):
+def run_server(host: Optional[str] = None, port: Optional[int] = None, reload: bool = None):
     """
     Run the web server.
     
     Args:
-        host: Host to bind to
-        port: Port to bind to
-        reload: Enable auto-reload on code changes
+        host: Host to bind to (overrides config)
+        port: Port to bind to (overrides config)
+        reload: Enable auto-reload on code changes (overrides config)
     """
-    logger.info(f"Starting web server on http://{host}:{port}")
+    # Ensure config is loaded
+    try:
+        config = get_config()
+    except RuntimeError:
+        config = load_config()
+        
+    final_host = host or config.api.host
+    final_port = port or config.api.port
+    final_reload = reload if reload is not None else config.api.reload
+
+    logger.info(f"Starting web server on http://{final_host}:{final_port}")
     uvicorn.run(
         "indexao.webui:app",
-        host=host,
-        port=port,
-        reload=reload,
-        log_level="info"
+        host=final_host,
+        port=final_port,
+        reload=final_reload,
+        log_level=config.logging.level.lower()
     )
 
 
 if __name__ == "__main__":
-    # Development mode
-    run_server(host="127.0.0.1", port=8000, reload=True)
+    # Development mode - configuration loaded automatically
+    run_server(reload=True)

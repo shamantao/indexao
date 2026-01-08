@@ -1,0 +1,99 @@
+    <!-- Add Volume Modal -->
+    <div class="modal" :class="{ 'active': showAddVolumeModal }" @click.self="showAddVolumeModal = false">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>
+                    <i class="fas fa-hdd"></i>
+                    Ajouter un Volume
+                </h3>
+                <button @click="showAddVolumeModal = false" class="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form @submit.prevent="addVolume">
+                <div class="form-group">
+                    <label for="volumeName">
+                        <i class="fas fa-tag"></i>
+                        Nom du volume *
+                    </label>
+                    <input 
+                        type="text" 
+                        id="volumeName" 
+                        x-model="newVolume.name"
+                        placeholder="ex: pcloud_drive"
+                        required
+                    >
+                    <small>Identifiant unique du volume (sans espaces)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="volumePath">
+                        <i class="fas fa-folder"></i>
+                        Chemin de montage *
+                    </label>
+                    <div style="display: flex; gap: 10px;">
+                        <input 
+                            type="text" 
+                            id="volumePath" 
+                            x-model="newVolume.mount_path"
+                            placeholder="/Users/phil/pCloud Drive"
+                            required
+                            style="flex-grow: 1;"
+                        >
+                        <button type="button" @click="openBrowser(newVolume.mount_path)" style="padding: 0.5rem 1rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); cursor: pointer;">
+                            <i class="fas fa-folder-open"></i>
+                        </button>
+                    </div>
+                    <small>Chemin absolu vers le répertoire à indexer</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="volumeIndex">
+                        <i class="fas fa-database"></i>
+                        Nom de l'index de recherche
+                    </label>
+                    <div style="display: flex; gap: 10px;">
+                        <select 
+                            id="volumeIndex" 
+                            x-model="newVolume.index_name"
+                            style="flex-grow: 1; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 4px;"
+                        >
+                            <option value="">-- Générer automatiquement --</option>
+                            <template x-for="idx in indexes" :key="idx.uid">
+                                <option :value="idx.uid" x-text="idx.uid"></option>
+                            </template>
+                        </select>
+                        <button type="button" @click="showCreateModal = true" style="padding: 0.5rem 1rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); cursor: pointer;">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <small>Si vide, sera généré automatiquement (ex: pcloud_drive_docs)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="volumePatterns">
+                        <i class="fas fa-filter"></i>
+                        Extensions de fichiers
+                    </label>
+                    <input 
+                        type="text" 
+                        id="volumePatterns" 
+                        x-model="newVolume.file_patterns"
+                        placeholder="*.pdf,*.doc,*.docx,*.txt,*.md"
+                    >
+                    <small>Extensions séparées par des virgules (ex: *.pdf,*.doc)</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" @click="showAddVolumeModal = false" style="background: var(--bg-secondary);">
+                        Annuler
+                    </button>
+                    <button type="submit">
+                        <i class="fas fa-check"></i>
+                        Ajouter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>

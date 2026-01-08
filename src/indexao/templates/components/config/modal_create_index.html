@@ -1,0 +1,53 @@
+    <!-- Create Index Modal -->
+    <div class="modal-overlay" :class="{ 'show': showCreateModal }" @click.self="showCreateModal = false" style="z-index: 2100;">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus-circle"></i> Créer un nouvel index</h3>
+                <button @click="showCreateModal = false" style="background: transparent; border: none;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form @submit.prevent="createIndex()">
+                <div class="form-group">
+                    <label for="indexUid">
+                        <i class="fas fa-tag"></i>
+                        Nom de l'index (UID) *
+                    </label>
+                    <input 
+                        type="text" 
+                        id="indexUid" 
+                        x-model="newIndex.uid"
+                        placeholder="ex: documents_pcloud"
+                        required
+                    >
+                    <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                        Uniquement lettres, chiffres, tirets et underscores
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="indexPrimaryKey">
+                        <i class="fas fa-key"></i>
+                        Primary Key (optionnel)
+                    </label>
+                    <input 
+                        type="text" 
+                        id="indexPrimaryKey" 
+                        x-model="newIndex.primaryKey"
+                        placeholder="ex: id (auto si vide)"
+                    >
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" @click="showCreateModal = false" style="background: var(--bg-secondary);">
+                        Annuler
+                    </button>
+                    <button type="submit">
+                        <i class="fas fa-check"></i>
+                        Créer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>

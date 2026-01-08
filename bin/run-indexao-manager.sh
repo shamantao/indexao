@@ -7,5 +7,8 @@ cd "$(dirname "$0")/.."
 # Activer l'environnement virtuel
 source venv/bin/activate
 
-# Lancer l'application avec le PYTHONPATH correct incluant src/
-PYTHONPATH="src:$PYTHONPATH" python bin/legacy_gui/IndexaoManager.py
+# Lancer l'application en arrière-plan
+echo "Lancement de Indexao Manager (Menu Bar)..."
+PYTHONPATH="src:$PYTHONPATH" nohup python bin/legacy_gui/IndexaoManager.py > /dev/null 2>&1 &
+PID=$!
+echo "Indexao Manager démarré avec le PID $PID"

@@ -214,6 +214,17 @@ class SearchPluginConfig:
 
 
 @dataclass
+class ApiConfig:
+    """API configuration."""
+    enabled: bool = True
+    host: str = "127.0.0.1"
+    port: int = 8000
+    cors_origins: List[str] = field(default_factory=lambda: ["http://localhost:3000"])
+    workers: int = 1
+    reload: bool = False
+
+
+@dataclass
 class PluginsConfig:
     """Plugins configuration."""
     ocr: OCRPluginConfig = field(default_factory=OCRPluginConfig)
@@ -227,6 +238,7 @@ class Config:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     paths: PathAdapterConfig = field(default_factory=PathAdapterConfig)
     plugins: PluginsConfig = field(default_factory=PluginsConfig)
+    api: ApiConfig = field(default_factory=ApiConfig)
     
     # Root directories for data storage
     index_root: str = "index"  # Where indexed data, cache, logs are stored
@@ -358,6 +370,8 @@ def _apply_env_overrides(config_dict: Dict[str, Any]) -> Dict[str, Any]:
         ("INDEXAO_LOGGING_CONSOLE_", ["logging", "console"]),
         ("INDEXAO_LOGGING_FILE_", ["logging", "file"]),
         ("INDEXAO_LOGGING_", ["logging"]),
+        # API
+        ("INDEXAO_API_", ["api"]),
         # Paths
         ("INDEXAO_PATHS_ADAPTERS_", ["paths", "adapters"]),
         ("INDEXAO_PATHS_", ["paths"]),
@@ -436,6 +450,7 @@ def _dict_to_config(config_dict: Dict[str, Any]) -> Config:
     logging_dict = config_dict.get("logging", {})
     paths_dict = config_dict.get("paths", {}).get("adapters", {})
     plugins_dict = config_dict.get("plugins", {})
+    api_dict = config_dict.get("api", {})
     
     # Build config objects
     logging_config = LoggingConfig(
@@ -494,6 +509,15 @@ def _dict_to_config(config_dict: Dict[str, Any]) -> Config:
         search=search_config
     )
     
+    api_config = ApiConfig(
+        enabled=api_dict.get("enabled", True),
+        host=api_dict.get("host", "127.0.0.1"),
+        port=api_dict.get("port", 8000),
+        cors_origins=api_dict.get("cors_origins", ["http://localhost:3000"]),
+        workers=api_dict.get("workers", 1),
+        reload=api_dict.get("reload", False)
+    )
+    
     # Extract paths section for root directories
     paths_section = config_dict.get("paths", {})
     
@@ -501,6 +525,7 @@ def _dict_to_config(config_dict: Dict[str, Any]) -> Config:
         logging=logging_config,
         paths=paths_config,
         plugins=plugins_config,
+        api=api_config,
         index_root=paths_section.get("index_root", "index"),
         sources_root=paths_section.get("sources_root", "_sources"),
         volumes_root=paths_section.get("volumes_root", "_Volumes"),

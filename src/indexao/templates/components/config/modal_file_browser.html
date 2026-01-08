@@ -1,0 +1,35 @@
+    <!-- File Browser Modal -->
+    <div class="modal" :class="{ 'active': showBrowserModal }" @click.self="showBrowserModal = false">
+        <div class="modal-content" style="max-height: 80vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3><i class="fas fa-folder-open"></i> Parcourir</h3>
+                <button @click="showBrowserModal = false" class="close-button"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div style="margin-bottom: 1rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 4px; font-family: monospace;">
+                <span x-text="browserPath"></span>
+            </div>
+
+            <div style="flex-grow: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px;">
+                <div x-show="browserLoading" style="padding: 1rem; text-align: center;">Chargement...</div>
+                <div x-show="!browserLoading" class="file-list">
+                    <template x-for="item in browserItems" :key="item.path">
+                        <div 
+                            @click="browse(item.path)"
+                            style="padding: 0.5rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color);"
+                            @mouseenter="$el.style.background = 'var(--bg-secondary)'"
+                            @mouseleave="$el.style.background = 'transparent'"
+                        >
+                            <i class="fas fa-folder" style="color: var(--accent-primary);"></i>
+                            <span x-text="item.name"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="form-actions" style="margin-top: 1rem;">
+                <button type="button" @click="showBrowserModal = false" style="background: var(--bg-secondary);">Annuler</button>
+                <button type="button" @click="selectPath()">Sélectionner ce dossier</button>
+            </div>
+        </div>
+    </div>

@@ -401,19 +401,22 @@ class DocumentProcessor:
             logger.error(f"  ✗ Indexing failed for {document_id}: {e}")
             return False
     
-    def process_file(self, file_path: Path, metadata: FileMetadata) -> ProcessingResult:
+    def process_file(self, file_path: Path, metadata: FileMetadata, document_id: Optional[str] = None, file_hash: Optional[str] = None) -> ProcessingResult:
         """
         Process a single file through the complete pipeline.
         
         Args:
             file_path: Path to file to process
             metadata: File metadata from scanner
+            document_id: Optional specific ID (e.g. from Hash)
+            file_hash: Optional SHA256 hash (Sprint 2)
             
         Returns:
             ProcessingResult with complete processing information
         """
         start_time = datetime.now()
-        document_id = f"DOC_{file_path.stem[:8].upper()}"
+        if not document_id:
+            document_id = f"DOC_{file_path.stem[:8].upper()}"
         
         result = ProcessingResult(
             document_id=document_id,
@@ -497,6 +500,7 @@ class DocumentProcessor:
                     file_path=str(file_path),
                     file_size=metadata.size_bytes,
                     mime_type=metadata.mime_type,
+                    file_hash=file_hash, # Sprint 2: Store Hash
                     text_length=len(extracted_text),
                     language="auto",
                     processing_duration=duration,
@@ -548,6 +552,7 @@ class DocumentProcessor:
                     file_path=str(file_path),
                     file_size=metadata.size_bytes,
                     mime_type=metadata.mime_type,
+                    file_hash=file_hash, 
                     text_length=len(result.extracted_text) if result.extracted_text else 0,
                     processing_duration=result.processing_time_seconds,
                     stages_completed=result.stages_completed,

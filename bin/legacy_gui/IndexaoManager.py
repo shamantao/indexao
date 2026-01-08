@@ -20,9 +20,26 @@ class IndexaoManager(rumps.App):
     def __init__(self):
         super().__init__(name="Indexao", title="🔍")
         self.meilisearch_script = Path.home() / "pCloudSync/Projets/meilisearch/meilisearch-tao.sh"
-        # Détection dynamique du chemin indexao
-        self.indexao_path = project_root
-        self.throttle_cfg_path = self.indexao_path / "data/db/throttling.json"
+        # Détection dynamique via indexao.config
+        try:
+            from indexao.config import load_config
+            # Force reload to ensure we get fresh paths
+            self.config = load_config()
+            self.indexao_path = project_root
+            
+            # Use config for all paths
+            db_dir = self.config.db_path.parent
+            self.throttle_cfg_path = db_dir / "throttling.json"
+            self.state_file_path = db_dir / "cloud_indexer_state.json"
+            
+            # Scripts locations (still relative to project root properly)
+            self.docs_script = self.indexao_path / "bin/docs-serve.sh"
+            
+            print(f"Loaded config: State file at {self.state_file_path}")
+        except Exception as e:
+            rumps.alert(f"Config Error: {e}")
+            sys.exit(1)
+
         # Références pour fenêtres PyQt6
         self.status_win = None
         self.throttle_win = None
@@ -151,7 +168,9 @@ class IndexaoManager(rumps.App):
                 cpu = mem = net_in = net_out = f"Erreur: {e}"
         # Scan/volume depuis state JSON
         try:
-            state_path = str(Path.home() / "Library/CloudStorage/Dropbox/devwww/app/indexao/data/cloud_indexer_state.json")
+            # Use dynamically resolved path
+            state_path = self.state_file_path
+            
             with open(state_path) as f:
                 state = json.load(f)
             vols = state.get("volumes", {})
@@ -269,6 +288,51 @@ Erreur PyQt6: {e}
             return result.returncode == 0
         except:
             return False
+
+    def is_docs_running(self):
+        """Check if Documentation is running"""
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", "mkdocs serve"],
+                capture_output=True,
+                text=True
+            )
+            return result.returncode == 0
+        except:
+            return False
+    
+    @rumps.clicked("Documentation")
+    def docs_menu(self, _):
+        pass
+
+    @rumps.clicked("Documentation/Démarrer Serveur")
+    def start_docs(self, _):
+        if self.is_docs_running():
+             rumps.alert("Docs", "La documentation tourne déjà sur http://127.0.0.1:8001")
+             return
+        
+        try:
+            subprocess.run([str(self.docs_script)])
+            rumps.notification("Documentation", "Démarrage...", "Serveur lancé sur http://127.0.0.1:8001")
+        except Exception as e:
+            rumps.alert("Erreur", f"Impossible de lancer docs-serve.sh: {e}")
+
+    @rumps.clicked("Documentation/Arrêter Serveur")
+    def stop_docs(self, _):
+        if not self.is_docs_running():
+             rumps.alert("Docs", "La documentation n'est pas en cours d'exécution.")
+             return
+        
+        try:
+            # Kill mkdocs
+            subprocess.run(["pkill", "-f", "mkdocs serve"])
+            rumps.notification("Documentation", "Arrêt", "Serveur de documentation arrêté")
+        except Exception as e:
+            rumps.alert("Erreur", f"Erreur à l'arrêt: {e}")
+
+    @rumps.clicked("Documentation/Ouvrir dans le navigateur")
+    def open_docs_browser(self, _):
+        webbrowser.open("http://127.0.0.1:8001")
     
     @rumps.clicked("Démarrer tout")
     def start_all(self, _):

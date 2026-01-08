@@ -12,18 +12,23 @@
                 Search Documents
             </h2>
             
-            <form onsubmit="performSearch(event)" class="search-form">
+            <form hx-get="/search/results" 
+                  hx-target="#searchResults" 
+                  hx-indicator="#searchIndicator"
+                  hx-trigger="submit, keyup changed delay:500ms from:#searchQuery"
+                  class="search-form">
+                
                 <div class="search-input-group">
                     <input 
                         type="text" 
                         id="searchQuery" 
+                        name="q"
                         placeholder="🔍 Recherche multilingue : français, anglais, 中文..."
                         class="search-input"
                         autofocus
                     >
                     <button type="submit" class="search-button">
                         <i class="fas fa-search"></i>
-                        Rechercher
                     </button>
                 </div>
                 
@@ -33,82 +38,41 @@
                             <i class="fas fa-language"></i>
                             Langue :
                         </label>
-                        <select id="searchLanguage" class="filter-select">
+                        <select name="lang" class="filter-select">
                             <option value="">Toutes les langues</option>
                             <option value="fr">🇫🇷 Français</option>
                             <option value="en">🇬🇧 English</option>
                             <option value="zh-TW">🇹🇼 中文 (繁體)</option>
                         </select>
                     </div>
-                    
-                    <div class="filter-group">
-                        <label>
-                            <i class="fas fa-list-ol"></i>
-                            Limite :
-                        </label>
-                        <select id="searchLimit" class="filter-select">
-                            <option value="10">10 résultats</option>
-                            <option value="25" selected>25 résultats</option>
-                            <option value="50">50 résultats</option>
-                            <option value="100">100 résultats</option>
-                        </select>
-                    </div>
                 </div>
             </form>
+            <div id="searchIndicator" class="htmx-indicator center-text">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+            </div>
         </div>
         
         <!-- Results Card -->
-        <div id="resultsCard" class="card" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2 style="margin: 0;">
-                    <i class="fas fa-list"></i>
-                    Results
-                    <span id="resultsCount" style="color: var(--text-secondary); font-size: 0.9em;"></span>
-                </h2>
-                <button onclick="clearSearch()">
-                    <i class="fas fa-times"></i>
-                    Clear
-                </button>
-            </div>
-            
+        <div class="card">
             <div id="searchResults" class="search-results">
-                <!-- Results populated by JavaScript -->
+                <!-- Results populated by HTMX -->
+                <div class="empty-state">
+                    <p class="text-muted">Commencez à taper pour rechercher...</p>
+                </div>
             </div>
         </div>
-        
-        <!-- Examples Card -->
+        <!-- Help Card -->
         <div class="card">
-            <h2>
-                <i class="fas fa-lightbulb"></i>
-                Exemples de recherche
-            </h2>
-            <div class="examples-grid">
-                <div class="example-item" onclick="searchExample('facture')">
-                    <span>🇫🇷 facture</span>
-                </div>
-                <div class="example-item" onclick="searchExample('invoice')">
-                    <span>🇬🇧 invoice</span>
-                </div>
-                <div class="example-item" onclick="searchExample('合約')">
-                    <span>🇹🇼 合約 (contrat)</span>
-                </div>
-                <div class="example-item" onclick="searchExample('PDF')">
-                    <span>📄 PDF</span>
-                </div>
-            </div>
-            
-            <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
-                <h4 style="margin: 0 0 0.5rem 0;">
-                    <i class="fas fa-info-circle"></i>
-                    Aide à la recherche
-                </h4>
-                <ul style="margin: 0; padding-left: 1.5rem;">
-                    <li>Recherche <strong>multilingue native</strong> : tapez en français, anglais ou chinois</li>
-                    <li>Meilisearch gère automatiquement les <strong>fautes de frappe</strong></li>
-                    <li>Le chinois traditionnel supporte la <strong>segmentation native</strong></li>
-                    <li>Utilisez les filtres pour cibler une langue spécifique</li>
-                </ul>
-            </div>
+            <h4 style="margin: 0 0 0.5rem 0;">
+                <i class="fas fa-info-circle"></i>
+                Aide à la recherche
+            </h4>
+            <ul style="margin: 0; padding-left: 1.5rem;">
+                <li>Recherche <strong>multilingue native</strong> : tapez en français, anglais ou chinois</li>
+                <li>Meilisearch gère automatiquement les <strong>fautes de frappe</strong></li>
+                <li>Le chinois traditionnel supporte la <strong>segmentation native</strong></li>
+                <li>Utilisez les filtres pour cibler une langue spécifique</li>
+            </ul>
         </div>
 {% endblock %}
 

@@ -39,7 +39,7 @@ is_running() {
 # Get daemon PID
 get_pid() {
     if is_running; then
-        launchctl list "$LABEL" | awk '/PID/ {print $3}'
+        launchctl list "$LABEL" | awk '/PID/ {print $3}' | tr -d ';'
     else
         echo "0"
     fi

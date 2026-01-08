@@ -1,0 +1,41 @@
+site_name: Indexao Documentation
+theme:
+  name: material
+  language: fr
+  features:
+    - content.code.copy
+    - navigation.expand
+    - navigation.indexes
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Accueil: index.md
+  - Projet:
+    - 'Vision': vision.md
+    - 'Backlog': backlog.md
+  - Architecture Technique:
+    - 'Workflow des Données': tech/workflow.md
+    - 'Référence Code': tech/reference.md
+  - Guide Utilisateur:
+    - 'Configuration': user/configuration.md

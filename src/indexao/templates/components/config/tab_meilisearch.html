@@ -1,0 +1,64 @@
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;">
+                    <i class="fas fa-list"></i>
+                    Index Meilisearch
+                </h2>
+                <button @click="showCreateModal = true">
+                    <i class="fas fa-plus"></i>
+                    Créer un index
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="loading" style="text-align: center; padding: 2rem;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2em; color: var(--accent-primary);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Chargement des index...</p>
+            </div>
+
+            <!-- Indexes List -->
+            <div x-show="!loading && indexes.length > 0">
+                <template x-for="index in indexes" :key="index.uid">
+                    <div class="index-card">
+                        <div class="index-header">
+                            <div>
+                                <div class="index-name" x-text="index.uid"></div>
+                                <div class="stat-item">
+                                    <i class="fas fa-clock"></i>
+                                    <span x-text="'Créé: ' + new Date(index.createdAt).toLocaleDateString('fr-FR')"></span>
+                                </div>
+                            </div>
+                            <div class="index-actions">
+                                <button @click="configureIndex(index.uid)" title="Configurer">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button @click="deleteIndex(index.uid)" class="btn-danger" title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="index-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-file"></i>
+                                <span x-text="(index.numberOfDocuments || 0) + ' documents'"></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-key"></i>
+                                <span x-text="'Primary: ' + (index.primaryKey || 'auto')"></span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!loading && indexes.length === 0" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                <i class="fas fa-inbox" style="font-size: 3em; margin-bottom: 1rem;"></i>
+                <p>Aucun index Meilisearch</p>
+                <button @click="showCreateModal = true" style="margin-top: 1rem;">
+                    <i class="fas fa-plus"></i>
+                    Créer votre premier index
+                </button>
+            </div>
+        </div>

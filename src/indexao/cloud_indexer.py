@@ -6,6 +6,7 @@ Manages progressive indexing of cloud storage volumes.
 import os
 import time
 import json
+import hashlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
@@ -83,6 +84,8 @@ class CloudIndexerState:
     
     def update_volume(self, volume: CloudVolume):
         """Update volume in state."""
+        # Reload state to avoid overwriting external changes (e.g. deletions from UI)
+        self.load()
         self.volumes[volume.name] = volume
         self.save()
 
@@ -134,7 +137,6 @@ class CloudIndexer:
         cfg_path = self.throttle_path
         if cfg_path.exists():
             try:
-                import json
                 with open(cfg_path) as f:
                     data = json.load(f)
                 return {
@@ -148,7 +150,6 @@ class CloudIndexer:
         return {'batch_size': self.batch_size, 'sleep_ms': 1000, 'max_docs_per_minute': 5000}
 
     def _save_throttle_config(self):
-        import json
         cfg_path = self.throttle_path
         try:
             cfg_path.parent.mkdir(parents=True, exist_ok=True)
@@ -312,21 +313,52 @@ class CloudIndexer:
             logger.error(f"Error scanning volume {volume.name}: {e}")
             return []
 
+    def _compute_sha256(self, file_path: Path) -> str:
+        """Compute SHA256 hash of a file."""
+        sha256_hash = hashlib.sha256()
+        try:
+            with open(file_path, "rb") as f:
+                for byte_block in iter(lambda: f.read(4096), b""):
+                    sha256_hash.update(byte_block)
+            return sha256_hash.hexdigest()
+        except Exception:
+            return ""
+
+    def _check_db_for_hash(self, file_hash: str) -> Optional[str]:
+        """Check if hash exists in documents table."""
+        try:
+            with self.db._connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT doc_id FROM documents WHERE file_hash = ?", (file_hash,))
+                row = cursor.fetchone()
+                if row:
+                    return row[0]
+        except Exception:
+            pass
+        return None
+
     def _prepare_docs(self, volume: CloudVolume, queue_rows: List) -> List[Dict]:
         documents = []
         for row in queue_rows:
             file_path = Path(row['path'])
             try:
-                # Generate safe ID: only alphanumeric, hyphens, underscores
-                # Remove parentheses and other invalid characters
-                safe_stem = ''.join(c if c.isalnum() or c in '-_' else '_' for c in file_path.stem)
-                file_hash = abs(hash(str(file_path)))  # Use absolute value to avoid negative sign
-                doc_id = f"{volume.name}_{safe_stem}_{file_hash}"
+                # 1. Compute Content Hash (Sprint 2: CAS Strategy)
+                content_hash = self._compute_sha256(file_path)
                 
-                # Ensure ID is not too long (max 511 bytes)
-                if len(doc_id.encode('utf-8')) > 511:
-                    doc_id = f"{volume.name}_{file_hash}"
+                # Default ID logic (fallback)
+                doc_id = f"{volume.name}_{abs(hash(str(file_path)))}" 
                 
+                # 2. Check for "Rendez-vous" (Fast-Track Convergence)
+                existing_doc_id = self._check_db_for_hash(content_hash) if content_hash else None
+                
+                if existing_doc_id:
+                    logger.info(f"Rendez-vous! File {file_path.name} matches existing doc {existing_doc_id}")
+                    doc_id = existing_doc_id
+                    # We reuse the existing ID, Meilisearch will merge/update metadata
+                elif content_hash:
+                     # New document, use Hash-based ID for future convergence
+                     doc_id = f"HASH_{content_hash}"
+
                 doc = {
                     "id": doc_id,
                     "volume": volume.name,
@@ -335,7 +367,8 @@ class CloudIndexer:
                     "extension": file_path.suffix.lower(),
                     "size": file_path.stat().st_size if file_path.exists() else 0,
                     "modified": datetime.fromtimestamp(file_path.stat().st_mtime).isoformat() if file_path.exists() else None,
-                    "indexed_at": datetime.now().isoformat()
+                    "indexed_at": datetime.now().isoformat(),
+                    "file_hash": content_hash # Store hash in Meilisearch too
                 }
                 documents.append(doc)
             except Exception as e:
@@ -518,6 +551,9 @@ class CloudIndexer:
         
         try:
             while True:
+                # Reload state to catch configuration changes
+                self.state.load()
+                
                 mounted = self.get_mounted_volumes()
                 
                 if mounted:
@@ -541,52 +577,12 @@ class CloudIndexer:
 
 
 def setup_default_volumes() -> CloudIndexer:
-    """Setup default cloud volumes configuration."""
-    indexer = CloudIndexer()
-    
-    # pCloud Drive (main cloud - 175k files)
-    indexer.add_volume(
-        name="pcloud_drive",
-        mount_path="/Users/phil/pCloud Drive",
-        index_name="pcloud_drive",
-        file_patterns=[
-            '*.pdf', '*.txt', '*.doc', '*.docx', '*.odt',
-            '*.png', '*.jpg', '*.jpeg', '*.tiff',
-            '*.md', '*.html', '*.json', '*.xml'
-        ],
-        exclude_patterns=[
-            '*/.*',  # Hidden files/folders
-            '*/.git/*',
-            '*/node_modules/*',
-            '*/__pycache__/*',
-            '*/venv/*',
-            '*/vendor/*',
-            '*.tmp', '*.cache', '*.log',
-            '*/Backup/*',  # Common backup folders
-            '*/Cache/*',
-            '*/.Trash/*'
-        ]
-    )
-    
-    # Dropbox
-    if Path("/Users/phil/Library/CloudStorage/Dropbox").exists():
-        indexer.add_volume(
-            name="dropbox",
-            mount_path="/Users/phil/Library/CloudStorage/Dropbox",
-            index_name="dropbox",
-            file_patterns=['*.pdf', '*.txt', '*.doc', '*.docx', '*.png', '*.jpg']
-        )
-    
-    # pCloudSync (if different from pCloud Drive)
-    if Path("/Users/phil/pCloudSync").exists():
-        indexer.add_volume(
-            name="pcloud_sync",
-            mount_path="/Users/phil/pCloudSync",
-            index_name="pcloud_sync",
-            file_patterns=['*.pdf', '*.txt', '*.md']
-        )
-    
-    return indexer
+    """
+    Initialize CloudIndexer. 
+    Does NOT add default volumes anymore (user must configure them via UI).
+    """
+    return CloudIndexer()
+
 
 
 if __name__ == "__main__":

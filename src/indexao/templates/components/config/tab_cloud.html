@@ -1,0 +1,95 @@
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;">
+                    <i class="fas fa-cloud"></i>
+                    Volumes Cloud à Indexer
+                </h2>
+                <button @click="showAddVolumeModal = true">
+                    <i class="fas fa-plus"></i>
+                    Ajouter un volume
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="loadingVolumes" style="text-align: center; padding: 2rem;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2em; color: var(--accent-primary);"></i>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Chargement des volumes...</p>
+            </div>
+
+            <!-- Volumes List -->
+            <div x-show="!loadingVolumes && cloudVolumes.length > 0">
+                <template x-for="volume in cloudVolumes" :key="volume.name">
+                    <div class="index-card">
+                        <div class="index-header">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <div class="index-name" x-text="volume.name"></div>
+                                    <span 
+                                        :class="volume.is_mounted ? 'badge badge-success' : 'badge badge-false'"
+                                        :title="volume.is_mounted ? 'Monté' : 'Non monté'"
+                                    >
+                                        <i :class="volume.is_mounted ? 'fas fa-check-circle' : 'fas fa-times-circle'"></i>
+                                        <span x-text="volume.is_mounted ? 'Monté' : 'Non monté'"></span>
+                                    </span>
+                                </div>
+                                <div class="stat-item" style="margin-top: 0.5rem;">
+                                    <i class="fas fa-folder"></i>
+                                    <span x-text="volume.mount_path"></span>
+                                </div>
+                            </div>
+                            <div class="index-actions">
+                                <button 
+                                    @click="scanVolume(volume.name)" 
+                                    :disabled="!volume.is_mounted"
+                                    title="Scanner maintenant"
+                                >
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button @click="deleteVolume(volume.name)" class="btn-danger" title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="index-stats">
+                            <div class="stat-item">
+                                <i class="fas fa-database"></i>
+                                <span x-text="'Index: ' + volume.index_name"></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-file"></i>
+                                <span x-text="volume.total_files + ' fichiers trouvés'"></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-check"></i>
+                                <span x-text="volume.indexed_files + ' indexés'"></span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-chart-line"></i>
+                                <span x-text="volume.progress + '%'"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Bar -->
+                        <div x-show="volume.progress > 0" style="margin-top: 1rem;">
+                            <div style="background: var(--bg-tertiary); height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div 
+                                    style="background: var(--accent-primary); height: 100%; transition: width 0.3s;"
+                                    :style="`width: ${volume.progress}%`"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!loadingVolumes && cloudVolumes.length === 0" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                <i class="fas fa-cloud" style="font-size: 3em; margin-bottom: 1rem;"></i>
+                <p>Aucun volume cloud configuré</p>
+                <button @click="showAddVolumeModal = true" style="margin-top: 1rem;">
+                    <i class="fas fa-plus"></i>
+                    Ajouter votre premier volume
+                </button>
+            </div>
+        </div>

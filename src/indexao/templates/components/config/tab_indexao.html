@@ -1,0 +1,362 @@
+<!-- Configuration Indexao - Extracted from config.html -->
+
+<!-- Logging Section -->
+<div class="card">
+    <h2>
+        <i class="fas fa-file-alt"></i>
+        Logging
+    </h2>
+    <div class="config-row">
+        <div class="config-key">Level</div>
+        <div class="config-value">
+            <span class="badge badge-info">{{ config.logging.level }}</span>
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Console Enabled</div>
+        <div class="config-value">
+            <span class="badge badge-{{ 'true' if config.logging.console_enabled else 'false' }}">
+                <i class="fas fa-{{ 'check' if config.logging.console_enabled else 'times' }}-circle"></i>
+                {{ config.logging.console_enabled }}
+            </span>
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">File Enabled</div>
+        <div class="config-value">
+            <span class="badge badge-{{ 'true' if config.logging.file_enabled else 'false' }}">
+                <i class="fas fa-{{ 'check' if config.logging.file_enabled else 'times' }}-circle"></i>
+                {{ config.logging.file_enabled }}
+            </span>
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Log Directory</div>
+        <div class="config-value">
+            <i class="fas fa-folder"></i>
+            {{ config.logging.log_dir }}
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Slow Threshold</div>
+        <div class="config-value">{{ config.logging.slow_threshold_ms }}ms</div>
+    </div>
+</div>
+
+<!-- Directories -->
+<div class="card">
+    <h2>
+        <i class="fas fa-folder-open"></i>
+        Directories
+    </h2>
+    <div class="config-row">
+        <div class="config-key">Input Directory</div>
+        <div class="config-value">
+            <i class="fas fa-inbox"></i>
+            {{ config.input_dir }}
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Output Directory</div>
+        <div class="config-value">
+            <i class="fas fa-folder"></i>
+            {{ config.output_dir }}
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Temp Directory</div>
+        <div class="config-value">
+            <i class="fas fa-clock"></i>
+            {{ config.temp_dir }}
+        </div>
+    </div>
+    
+    <div class="subsection">
+        <h3>Path Adapters</h3>
+        <div class="config-row">
+            <div class="config-key">Cache Enabled</div>
+            <div class="config-value">
+                <span class="badge badge-{{ 'true' if config.paths.cache_enabled else 'false' }}">
+                    <i class="fas fa-{{ 'check' if config.paths.cache_enabled else 'times' }}-circle"></i>
+                    {{ config.paths.cache_enabled }}
+                </span>
+            </div>
+        </div>
+        <div class="config-row">
+            <div class="config-key">Cache TTL</div>
+            <div class="config-value">{{ config.paths.cache_ttl_seconds }}s</div>
+        </div>
+        <div class="config-row">
+            <div class="config-key">Retry Enabled</div>
+            <div class="config-value">
+                <span class="badge badge-{{ 'true' if config.paths.retry_enabled else 'false' }}">
+                    {{ config.paths.retry_enabled }}
+                </span>
+            </div>
+        </div>
+        <div class="config-row">
+            <div class="config-key">Retry Attempts</div>
+            <div class="config-value">{{ config.paths.retry_attempts }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Plugin Switcher (Runtime) -->
+<div class="card">
+    <h2>
+        <i class="fas fa-exchange-alt"></i>
+        Plugin Switcher (Hot-Swap)
+    </h2>
+    <p class="config-help">
+        <i class="fas fa-info-circle"></i>
+        Switch between adapters without restarting the server. Changes take effect immediately.
+    </p>
+    
+    <!-- OCR Switcher -->
+    <div class="switcher-section">
+        <h3><i class="fas fa-eye"></i> OCR Engine</h3>
+        <div class="switcher-controls">
+            <select id="ocr-selector" class="adapter-selector">
+                <option value="">Loading...</option>
+            </select>
+            <button onclick="switchAdapter('ocr')" class="btn btn-primary">
+                <i class="fas fa-sync-alt"></i>
+                Switch OCR
+            </button>
+            <span id="ocr-status" class="switcher-status"></span>
+        </div>
+    </div>
+    
+    <!-- Translator Switcher -->
+    <div class="switcher-section">
+        <h3><i class="fas fa-language"></i> Translator Engine</h3>
+        <div class="switcher-controls">
+            <select id="translator-selector" class="adapter-selector">
+                <option value="">Loading...</option>
+            </select>
+            <button onclick="switchAdapter('translator')" class="btn btn-primary">
+                <i class="fas fa-sync-alt"></i>
+                Switch Translator
+            </button>
+            <span id="translator-status" class="switcher-status"></span>
+        </div>
+    </div>
+    
+    <!-- Search Switcher -->
+    <div class="switcher-section">
+        <h3><i class="fas fa-search"></i> Search Engine</h3>
+        <div class="switcher-controls">
+            <select id="search-selector" class="adapter-selector">
+                <option value="">Loading...</option>
+            </select>
+            <button onclick="switchAdapter('search')" class="btn btn-primary">
+                <i class="fas fa-sync-alt"></i>
+                Switch Search
+            </button>
+            <span id="search-status" class="switcher-status"></span>
+        </div>
+    </div>
+</div>
+
+<!-- OCR Plugin -->
+<div class="card">
+    <h2>
+        <i class="fas fa-eye"></i>
+        OCR Plugin
+    </h2>
+    <div class="config-row">
+        <div class="config-key">Engine</div>
+        <div class="config-value">
+            <span class="badge badge-info">{{ config.plugins.ocr.engine }}</span>
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Languages</div>
+        <div class="config-value">
+            {% for lang in config.plugins.ocr.languages %}
+            <span class="badge badge-info">{{ lang }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Confidence Threshold</div>
+        <div class="config-value">{{ config.plugins.ocr.confidence_threshold }}</div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Timeout</div>
+        <div class="config-value">{{ config.plugins.ocr.timeout_seconds }}s</div>
+    </div>
+</div>
+
+<!-- Translator Plugin -->
+<div class="card">
+    <h2>
+        <i class="fas fa-language"></i>
+        Translator Plugin
+    </h2>
+    <div class="config-row">
+        <div class="config-key">Engine</div>
+        <div class="config-value">
+            <span class="badge badge-info">{{ config.plugins.translator.engine }}</span>
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Source Language</div>
+        <div class="config-value">{{ config.plugins.translator.source_language }}</div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Target Languages</div>
+        <div class="config-value">
+            {% for lang in config.plugins.translator.target_languages %}
+            <span class="badge badge-info">{{ lang }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Confidence Threshold</div>
+        <div class="config-value">{{ config.plugins.translator.confidence_threshold }}</div>
+    </div>
+</div>
+
+<!-- Search Plugin -->
+<div class="card">
+    <h2>
+        <i class="fas fa-search"></i>
+        Search Plugin
+    </h2>
+    <div class="config-row">
+        <div class="config-key">Engine</div>
+        <div class="config-value">
+            <span class="badge badge-info">{{ config.plugins.search.engine }}</span>
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Host</div>
+        <div class="config-value">
+            <i class="fas fa-server"></i>
+            {{ config.plugins.search.host }}
+        </div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Port</div>
+        <div class="config-value">{{ config.plugins.search.port }}</div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">Index Name</div>
+        <div class="config-value">{{ config.plugins.search.index_name }}</div>
+    </div>
+    <div class="config-row">
+        <div class="config-key">API Key</div>
+        <div class="config-value">
+            <i class="fas fa-key"></i>
+            {% if config.plugins.search.api_key %}
+            <span class="badge badge-info">***{{ config.plugins.search.api_key[-4:] }}</span>
+            {% else %}
+            <span class="badge badge-false">Not configured</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Plugin Switcher JavaScript -->
+<script>
+    // Load available plugins and active adapters on page load
+    async function loadPluginData() {
+        try {
+            // Load available plugins for each type
+            const types = ['ocr', 'translator', 'search'];
+            
+            for (const type of types) {
+                // Get available plugins
+                const pluginsResp = await fetch(`/api/plugins?adapter_type=${type}`);
+                const plugins = await pluginsResp.json();
+                
+                // Get active adapter
+                const activeResp = await fetch(`/api/plugins/${type}/active`);
+                const active = await activeResp.json();
+                
+                // Populate selector
+                const selector = document.getElementById(`${type}-selector`);
+                selector.innerHTML = '';
+                
+                plugins.forEach(plugin => {
+                    const option = document.createElement('option');
+                    option.value = plugin.name;
+                    option.textContent = `${plugin.name} (v${plugin.version})`;
+                    if (plugin.name === active.name) {
+                        option.selected = true;
+                    }
+                    selector.appendChild(option);
+                });
+                
+                // Update status
+                const status = document.getElementById(`${type}-status`);
+                if (active.name) {
+                    status.innerHTML = `<span class="badge badge-success"><i class="fas fa-check-circle"></i> Active: ${active.name}</span>`;
+                } else {
+                    status.innerHTML = `<span class="badge badge-false"><i class="fas fa-times-circle"></i> None active</span>`;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load plugin data:', error);
+            showAlert('Failed to load plugin data', 'error');
+        }
+    }
+    
+    // Switch adapter
+    async function switchAdapter(type) {
+        const selector = document.getElementById(`${type}-selector`);
+        const adapterName = selector.value;
+        const status = document.getElementById(`${type}-status`);
+        
+        if (!adapterName) {
+            showAlert('Please select an adapter', 'warning');
+            return;
+        }
+        
+        try {
+            // Show loading
+            status.innerHTML = `<span class="badge badge-info"><i class="fas fa-spinner fa-spin"></i> Switching...</span>`;
+            
+            // Call API
+            const resp = await fetch('/api/plugins/switch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    adapter_type: type,
+                    adapter_name: adapterName
+                })
+            });
+            
+            if (!resp.ok) {
+                const error = await resp.json();
+                throw new Error(error.detail || 'Failed to switch adapter');
+            }
+            
+            const result = await resp.json();
+            
+            // Show success
+            status.innerHTML = `<span class="badge badge-success"><i class="fas fa-check-circle"></i> Switched to ${adapterName}</span>`;
+            showAlert(`Switched to ${adapterName}`, 'success');
+            
+            // Reload after 1 second
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Switch failed:', error);
+            status.innerHTML = `<span class="badge badge-false"><i class="fas fa-times-circle"></i> Failed: ${error.message}</span>`;
+            showAlert(`Failed: ${error.message}`, 'error');
+        }
+    }
+    
+    // Load on page ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadPluginData);
+    } else {
+        loadPluginData();
+    }
+</script>

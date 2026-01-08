@@ -34,7 +34,7 @@ class DocumentDatabase:
     """
     
     # Schema version for migrations
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
     
     def __init__(self, db_path: str = "data/db/indexao.db"):
         """
@@ -53,6 +53,7 @@ class DocumentDatabase:
         
         # Verify schema version
         self._check_schema_version()
+
     
     @contextmanager
     def _connection(self):
@@ -190,6 +191,22 @@ class DocumentDatabase:
             current_version = row[0] if row else 0
             
             if current_version < self.SCHEMA_VERSION:
+                if current_version < 2:
+                    # v2: Add hash support for Sprint 2 (Hybrid Indexing)
+                    try:
+                        cursor.execute("ALTER TABLE documents ADD COLUMN file_hash TEXT")
+                        cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents(file_hash)")
+                    except sqlite3.OperationalError: 
+                        pass # Ignore if already exists (safe migration)
+
+                    try:
+                        cursor.execute("ALTER TABLE index_queue ADD COLUMN file_hash TEXT")
+                        cursor.execute("CREATE INDEX IF NOT EXISTS idx_index_queue_hash ON index_queue(file_hash)")
+                    except sqlite3.OperationalError:
+                        pass
+
+                    logger.info("✓ Schema upgraded to v2: Added hash support")
+
                 cursor.execute(
                     "INSERT INTO schema_version (version) VALUES (?)",
                     (self.SCHEMA_VERSION,)
@@ -197,6 +214,7 @@ class DocumentDatabase:
                 logger.info(f"✓ Schema upgraded: v{current_version} → v{self.SCHEMA_VERSION}")
             else:
                 logger.debug(f"Schema version: v{current_version}")
+
     
     # ========================================================================
     # DOCUMENT CRUD OPERATIONS

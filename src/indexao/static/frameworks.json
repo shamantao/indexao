@@ -1,17 +1,32 @@
 {
   "alpine": {
-    "downloaded": "2025-11-13T13:57:24.410095",
+    "downloaded": "2026-01-07T17:49:02.151208",
     "version": "3.14.1",
     "size": 44659
   },
   "htmx": {
-    "downloaded": "2025-11-13T13:57:24.820434",
+    "downloaded": "2026-01-07T17:49:02.383470",
     "version": "1.9.10",
     "size": 47755
   },
   "fontawesome": {
-    "downloaded": "2025-11-13T13:57:25.179420",
+    "downloaded": "2026-01-07T17:49:02.593549",
     "version": "6.4.0",
     "size": 102025
+  },
+  "fa-solid-woff2": {
+    "downloaded": "2026-01-07T17:49:02.784628",
+    "version": "6.4.0",
+    "size": 150124
+  },
+  "fa-brands-woff2": {
+    "downloaded": "2026-01-07T17:49:02.963168",
+    "version": "6.4.0",
+    "size": 108020
+  },
+  "fa-regular-woff2": {
+    "downloaded": "2026-01-07T17:49:03.125998",
+    "version": "6.4.0",
+    "size": 24948
   }
 }
