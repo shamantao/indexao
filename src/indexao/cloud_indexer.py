@@ -250,19 +250,43 @@ class CloudIndexer:
             if vol.enabled and self.is_mounted(vol)
         ]
     
-    def scan_volume(self, volume: CloudVolume) -> List[Path]:
-        """Scan volume for indexable files."""
-        logger.info(f"Scanning volume: {volume.name} ({volume.mount_path})")
+    def scan_and_index_volume(self, volume: CloudVolume, batch_size: int = 50) -> Dict[str, int]:
+        """
+        Scan volume and index directly to Meilisearch (No DB Queue).
         
+        Args:
+            volume: Volume to index
+            batch_size: Number of documents to send in one batch
+            
+        Returns:
+            Stats dictionary {total, indexed, errors}
+        """
+        logger.info(f"Direct Indexing Volume: {volume.name} ({volume.mount_path})")
+        
+        if not self.is_mounted(volume):
+             logger.error(f"Volume not mounted: {volume.mount_path}")
+             return {"status": "error", "message": "Volume not mounted"}
+
         try:
             from indexao.scanner import FileScanner
             
-            # Get extensions from patterns (*.pdf -> .pdf)
+            # 1. Scan Files
             extensions = set()
-            for pattern in volume.file_patterns:
-                if pattern.startswith('*.'):
-                    extensions.add(pattern[1:])  # Remove *
             
+            # Normalize to list to handle both list and comma-separated string
+            patterns_source = volume.file_patterns
+            if isinstance(patterns_source, str):
+                patterns_source = [p.strip() for p in patterns_source.split(',')]
+                
+            for pattern in patterns_source:
+                pattern = pattern.strip()
+                # Robustly strip wildcards to get just extension with dot
+                if pattern.startswith('*'):
+                    pattern = pattern[1:] # .pdf
+                
+                # FileScanner will normalize 'pdf' to '.pdf' if needed
+                extensions.add(pattern)
+
             scanner = FileScanner(
                 root_dir=volume.mount_path,
                 recursive=True,
@@ -271,47 +295,171 @@ class CloudIndexer:
             )
             
             file_metadata_list = scanner.scan()
-            
-            file_metadata_list = scanner.scan()
             files = [fm.path for fm in file_metadata_list]
             
             # Apply exclude patterns
             filtered_files = []
             for file_path in files:
-                # Check if file matches any exclude pattern
                 should_exclude = False
                 for pattern in volume.exclude_patterns:
                     import fnmatch
                     if fnmatch.fnmatch(str(file_path), pattern):
                         should_exclude = True
                         break
-                
                 if not should_exclude:
                     filtered_files.append(file_path)
             
-            logger.info(f"Found {len(filtered_files)} files (filtered from {len(files)})")
-            volume.total_files = len(filtered_files)
-            self.state.update_volume(volume)
+            total_files = len(filtered_files)
+            volume.total_files = total_files
+            logger.info(f"Found {total_files} files to index")
             
-            # Populate persistent queue
+            # 2. Process and Send in Batches
+            indexed_count = 0
+            errors = 0
+            current_batch = []
+            
             for file_path in filtered_files:
                 try:
-                    stat = file_path.stat()
-                    self.db.index_queue_add(
-                        volume=volume.name,
-                        path=str(file_path),
-                        size=stat.st_size,
-                        modified=datetime.fromtimestamp(stat.st_mtime).isoformat()
-                    )
-                except Exception as e:
-                    logger.error(f"Queue add failed for {file_path}: {e}")
+                    # CAS Strategy (Sprint 2): Compute Hash
+                    content_hash = self._compute_sha256(file_path)
+                    
+                    # Default ID logic
+                    doc_id = f"{volume.name}_{abs(hash(str(file_path)))}" 
+                    
+                    # Stable Hash-based ID
+                    if content_hash:
+                         doc_id = f"HASH_{content_hash}"
+                         
+                    # Check for "Rendez-vous" in SQLite (Local Knowledge)
+                    # If we already know this hash, we skip full re-indexing in Meilisearch
+                    # UNLESS the user explicitly requested a forcing, or if we want to update the path.
+                    # For now, we update Meili so it has the new Path, but we use the stable ID to avoid dups.
+                    
+                    # Update Local SQLite Knowledge (System of Record)
+                    # This is crucial for Indexao to "know" what it has indexed.
+                    # We do a lightweight insert/update if possible, or just rely on Meili as the truth for now?
+                    # The user asked: "Indexao must know". So we should check DB.
+                    
+                    # Determine if it's already known
+                    timestamp = datetime.now().isoformat()
+                    is_known = False
+                    try:
+                        with self.db._connection() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT doc_id FROM documents WHERE file_hash = ?", (content_hash,))
+                            row = cursor.fetchone()
+                            if row:
+                                is_known = True
+                                # It's a "Rendez-vous"! 
+                                # We can optionally update the path here if needed.
+                                # But for direct indexing, we proceed to ensure Meilisearch is up to date with this location.
+                    except Exception:
+                        pass # DB might be locked or busy, we proceed with Meilisearch push
+                    
+                    doc = {
+                        "id": doc_id,
+                        "volume": volume.name,
+                        "filename": file_path.name,
+                        "path": str(file_path),
+                        "extension": file_path.suffix.lower(),
+                        "size": file_path.stat().st_size,
+                        "modified": datetime.fromtimestamp(file_path.stat().st_mtime).isoformat(),
+                        "indexed_at": timestamp,
+                        "file_hash": content_hash
+                    }
+                    current_batch.append(doc)
+                    
+                    # Flush Batch
+                    if len(current_batch) >= batch_size:
+                        success = self.send_to_meilisearch_sync(volume.index_name, current_batch)
+                        if success:
+                            indexed_count += len(current_batch)
+                            
+                            # Update SQLite for each sent doc (Sprint 3: Indexao Must Know)
+                            # We failed to do this in the previous "simplification", restoring knowledge now.
+                            try:
+                                with self.db._connection() as conn:
+                                    cursor = conn.cursor()
+                                    for d in current_batch:
+                                        # Minimal metadata storage to acknowledge "We have indexed this"
+                                        # This supports the Fast-Track check later.
+                                        meta_json = json.dumps({
+                                            "file_path": d["path"],
+                                            "file_hash": d["file_hash"],
+                                            "origin": "direct_scan"
+                                        })
+                                        
+                                        # Upsert: Insert or Ignore key collision
+                                        # Note: We don't overwrite "full" documents processed by the Processor
+                                        # We just ensure the Hash is registered.
+                                        cursor.execute("""
+                                            INSERT OR IGNORE INTO documents (doc_id, content, status, file_hash, metadata, created_at, processed_at)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                                        """, (
+                                            d["id"], 
+                                            "[Pending Content Extraction]", 
+                                            "indexed", # It is in Meilisearch (metadata only)
+                                            d["file_hash"],
+                                            meta_json,
+                                            d["indexed_at"],
+                                            d["indexed_at"]
+                                        ))
+                                        
+                                        # If it existed, update the status just in case (optional, but good for tracking)
+                                        # cursor.execute("UPDATE documents SET status='indexed' WHERE doc_id=?", (d["id"],))
+                            except Exception as db_e:
+                                logger.warning(f"Failed to update local DB knowledge: {db_e}")
 
-            logger.info(f"Queued {len(filtered_files)} files for volume {volume.name}")
-            return filtered_files
+                        else:
+                            errors += len(current_batch)
+                        current_batch = []
+                        
+                        # Update progress in state
+                        volume.indexed_files = indexed_count
+                        self.state.update_volume(volume)
+                
+                except Exception as e:
+                    logger.error(f"Error processing file {file_path}: {e}")
+                    errors += 1
+            
+            # Flush remaining
+            if current_batch:
+                success = self.send_to_meilisearch_sync(volume.index_name, current_batch)
+                if success:
+                    indexed_count += len(current_batch)
+                    
+                    # Update SQLite for remaining (Duplicated logic, should refactor but keep simple/inline for now)
+                    try:
+                        with self.db._connection() as conn:
+                            cursor = conn.cursor()
+                            for d in current_batch:
+                                meta_json = json.dumps({
+                                    "file_path": d["path"],
+                                    "file_hash": d["file_hash"],
+                                    "origin": "direct_scan"
+                                })
+                                cursor.execute("""
+                                    INSERT OR IGNORE INTO documents (doc_id, content, status, file_hash, metadata, created_at, processed_at)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                                """, (d["id"], "[Pending Content Extraction]", "indexed", d["file_hash"], meta_json, d["indexed_at"], d["indexed_at"]))
+                    except Exception as db_e:
+                        logger.warning(f"Failed to update local DB knowledge: {db_e}")
+                else:
+                    errors += len(current_batch)
+            
+            volume.indexed_files = indexed_count
+            volume.last_scan = datetime.now().isoformat()
+            self.state.update_volume(volume)
+            
+            return {
+                "total": total_files,
+                "indexed": indexed_count,
+                "errors": errors
+            }
             
         except Exception as e:
-            logger.error(f"Error scanning volume {volume.name}: {e}")
-            return []
+            logger.error(f"Error in direct indexing: {e}")
+            return {"status": "error", "message": str(e)}
 
     def _compute_sha256(self, file_path: Path) -> str:
         """Compute SHA256 hash of a file."""

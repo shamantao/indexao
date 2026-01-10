@@ -11,13 +11,32 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VENV_DIR="$PROJECT_DIR/venv"
 PID_FILE="$PROJECT_DIR/data/indexao.pid"
 
-# Logs directory in data
-LOG_DIR="$PROJECT_DIR/data/logs"
-LOG_FILE="$LOG_DIR/webui.log"
 # Configuration extraction du fichier TOML
 get_config_value() {
     "$VENV_DIR/bin/python3" -c "import tomllib; print(tomllib.load(open('$PROJECT_DIR/config/config.toml', 'rb'))['api']['$1'])" 2>/dev/null
 }
+
+get_index_root() {
+     "$VENV_DIR/bin/python3" -c "import logging; logging.disable(logging.CRITICAL); import sys; sys.path.append('src'); from indexao.config import load_config; print(load_config().index_root)" 2>/dev/null
+}
+
+get_log_dir() {
+     "$VENV_DIR/bin/python3" -c "import logging; logging.disable(logging.CRITICAL); import sys; sys.path.append('src'); from indexao.config import load_config; print(load_config().logging.log_dir)" 2>/dev/null
+}
+
+# Resolve Paths
+INDEX_ROOT_PATH=$(get_index_root)
+if [ ! -z "$INDEX_ROOT_PATH" ]; then
+    PID_FILE="$INDEX_ROOT_PATH/indexao.pid"
+    LOG_DIR_PATH=$(get_log_dir)
+    LOG_DIR="$LOG_DIR_PATH"
+else
+    # Fallback
+    PID_FILE="$PROJECT_DIR/data/indexao.pid"
+    LOG_DIR="$PROJECT_DIR/data/logs"
+fi
+
+LOG_FILE="$LOG_DIR/webui.log"
 
 HOST=$(get_config_value "host")
 PORT=$(get_config_value "port")

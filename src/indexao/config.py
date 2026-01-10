@@ -489,12 +489,25 @@ def _dict_to_config(config_dict: Dict[str, Any]) -> Config:
     )
     
     search_dict = plugins_dict.get("search", {})
+    # Determine engine (support 'backend' as alias for 'engine')
+    search_engine = search_dict.get("engine", search_dict.get("backend", "mock"))
+    
+    # Extract engine-specific settings if available
+    # e.g. [plugins.search.meilisearch] -> search_dict['meilisearch']
+    engine_settings = search_dict.get(search_engine, {}) if search_engine in search_dict else search_dict
+    
+    # Merge top-level search settings with engine-specific settings
+    # Engine settings take precedence
+    final_host = engine_settings.get("host", search_dict.get("host", "localhost"))
+    final_port = engine_settings.get("port", search_dict.get("port", 7700))
+    final_api_key = engine_settings.get("api_key", search_dict.get("api_key"))
+    
     search_config = SearchPluginConfig(
-        engine=search_dict.get("engine", "mock"),
-        host=search_dict.get("host", "localhost"),
-        port=search_dict.get("port", 7700),
-        index_name=search_dict.get("index_name", "documents"),
-        api_key=search_dict.get("api_key"),
+        engine=search_engine,
+        host=final_host,
+        port=final_port,
+        index_name=engine_settings.get("index_name", search_dict.get("index_name", "documents")),
+        api_key=final_api_key,
         timeout_seconds=search_dict.get("timeout_seconds", 30),
         options=search_dict.get("options", {})
     )

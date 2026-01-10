@@ -25,6 +25,11 @@ from .paths import get_path_adapter
 from .adapters.ocr import MockOCRAdapter, OCRResult
 from .adapters.translator import MockTranslatorAdapter, TranslationResult
 from .adapters.search import MockSearchAdapter, IndexedDocument
+try:
+    from .adapters.search.meilisearch import MeilisearchAdapter
+except ImportError:
+    MeilisearchAdapter = None
+
 from .database import DocumentDatabase
 from .models.document import Document, DocumentMetadata, ProcessingStatus as DocStatus, ProcessingStage
 
@@ -160,7 +165,23 @@ class DocumentProcessor:
         
         # Search Adapter
         search_engine = self.config.plugins.search.engine
-        if search_engine == "mock":
+        
+        if search_engine == "meilisearch":
+            if MeilisearchAdapter:
+                try:
+                    self._search_adapter = MeilisearchAdapter(
+                        host=self.config.plugins.search.host,
+                        api_key=self.config.plugins.search.api_key,
+                        index_name=self.config.plugins.search.index_name
+                    )
+                    logger.info(f"✓ Search adapter initialized: {search_engine}")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Meilisearch: {e}, falling back to mock")
+                    self._search_adapter = MockSearchAdapter()
+            else:
+                 logger.warning(f"Meilisearch adapter not available available (imports failed), falling back to mock")
+                 self._search_adapter = MockSearchAdapter()
+        elif search_engine == "mock":
             self._search_adapter = MockSearchAdapter()
             logger.info(f"✓ Search adapter initialized: {search_engine}")
         else:

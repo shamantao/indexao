@@ -248,7 +248,8 @@ Erreur PyQt6: {e}
             import sys
             sys.path.insert(0, str(self.indexao_path))
             from src.indexao.database import DocumentDatabase
-            db = DocumentDatabase(db_path=str(self.indexao_path / "data/indexao.db"))
+            # Use configured path instead of hardcoded
+            db = DocumentDatabase(db_path=str(self.config.db_path))
             return db.index_queue_stats()
         except Exception as e:
             return {'total': 0, 'pending': 0, 'processing': 0, 'done': 0, 'error': 0}

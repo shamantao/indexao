@@ -26,6 +26,7 @@ from indexao.config import load_config, get_config, Config
 from indexao.logger import get_logger
 from indexao.upload_handler import UploadHandler, UploadError
 from indexao.services.fast_track import FastTrackService # Sprint 2
+from indexao.services.auto_indexer import AutoIndexerService # Sprint 3
 from indexao.scanner import FileScanner, scan_directory
 from indexao.processor import DocumentProcessor, ProcessingStatus
 from indexao.database import DocumentDatabase
@@ -33,6 +34,7 @@ from indexao.models.document import ProcessingStatus as DocStatus
 from indexao.framework_manager import get_framework_manager, ensure_frameworks_available
 from indexao.plugin_manager import PluginManager
 from indexao.plugin_routes import router as plugin_router, set_plugin_manager
+from indexao.services.auto_indexer import AutoIndexerService # Sprint 3 - Auto Indexer
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -148,35 +150,20 @@ async def startup_event():
             logger.info("✓ Pipeline processor initialized (Tesseract + Meilisearch)")
         except Exception as e:
             logger.warning(f"Failed to initialize pipeline: {e}")
-        
-        # Initialize search adapter
-        try:
-            from indexao.search_routes import initialize_search_adapter
-            config = get_config()
             
-            # Robust config access for Meilisearch
-            # Assuming config structure matches TOML: plugins.search.meilisearch.host
-            try:
-                # Try explicit meilisearch config first
-                meili_host = config.plugins.search.meilisearch.host
-                # API Key is optional
-                meili_key = getattr(config.plugins.search.meilisearch, 'api_key', None)
-            except AttributeError:
-                # Fallback to flattened or default
-                meili_host = "http://localhost:7700"
-                meili_key = None
-                logger.warning("Using default Meilisearch config (config path not found)")
-
-            initialize_search_adapter(
-                host=meili_host,
-                api_key=meili_key,
-                index_name="indexao_documents" # TODO: Make configurable
-            )
-            logger.info(f"✓ Search API initialized (Meilisearch at {meili_host})")
+        # Initialize Auto-Indexer (Sprint 3) - Run in background
+        try:
+             # Use the processor from app state which has the correct configuration
+             auto_indexer = AutoIndexerService(app.state.processor)
+             # Schedule sync as background task (non-blocking)
+             import asyncio
+             asyncio.create_task(auto_indexer.sync_on_startup())
+             logger.info("✓ Auto-Indexer initialized and sync scheduled")
         except Exception as e:
-            logger.warning(f"Failed to initialize search API: {e}")
+             logger.error(f"Failed to start Auto-Indexer: {e}")
         
-        logger.info("✓ Web UI ready")
+        logger.info("✓ Web UI started successfully")
+
     except Exception as e:
         logger.error(f"Failed to start Web UI: {e}")
         raise
@@ -805,21 +792,42 @@ async def get_statistics() -> Dict[str, Any]:
 # Meilisearch Proxy API Routes
 # =============================================================================
 
+def _get_meilisearch_base_url(config: Config) -> str:
+    """Helper to construct Meilisearch URL safely."""
+    host = config.plugins.search.host
+    # If host already has scheme (http/https), use it as is (ignoring port if present in string)
+    if "://" in host:
+        return host.rstrip("/")
+    
+    # Otherwise construct from host and port
+    return f"http://{host}:{config.plugins.search.port}"
+
+def _get_meilisearch_headers(config: Config) -> Dict[str, str]:
+    """Helper for Auth headers."""
+    if config.plugins.search.api_key and str(config.plugins.search.api_key).lower() != "none":
+        return {"Authorization": f"Bearer {config.plugins.search.api_key}"}
+    return {}
+
 @app.get("/api/meilisearch/indexes")
 async def meilisearch_list_indexes():
     """List all Meilisearch indexes."""
     config = get_config()
+    base_url = _get_meilisearch_base_url(config)
     
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes",
-                headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+                f"{base_url}/indexes",
+                headers=_get_meilisearch_headers(config)
             )
             response.raise_for_status()
             return response.json()
     except Exception as e:
         logger.error(f"Error listing Meilisearch indexes: {e}")
+        # Return empty list instead of 500 if connection fails, 
+        # so UI doesn't break completely but shows empty state with warning
+        if "ConnectError" in str(e):
+             raise HTTPException(status_code=503, detail="Meilisearch not reachable")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -827,6 +835,7 @@ async def meilisearch_list_indexes():
 async def meilisearch_create_index(request: Request):
     """Create a new Meilisearch index."""
     config = get_config()
+    base_url = _get_meilisearch_base_url(config)
     
     try:
         body = await request.json()
@@ -842,9 +851,9 @@ async def meilisearch_create_index(request: Request):
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes",
+                f"{base_url}/indexes",
                 json=payload,
-                headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+                headers=_get_meilisearch_headers(config)
             )
             response.raise_for_status()
             return response.json()
@@ -859,12 +868,13 @@ async def meilisearch_create_index(request: Request):
 async def meilisearch_get_index(index_uid: str):
     """Get Meilisearch index details."""
     config = get_config()
+    base_url = _get_meilisearch_base_url(config)
     
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes/{index_uid}",
-                headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+                f"{base_url}/indexes/{index_uid}",
+                headers=_get_meilisearch_headers(config)
             )
             response.raise_for_status()
             return response.json()
@@ -877,12 +887,13 @@ async def meilisearch_get_index(index_uid: str):
 async def meilisearch_delete_index(index_uid: str):
     """Delete a Meilisearch index."""
     config = get_config()
+    base_url = _get_meilisearch_base_url(config)
     
     try:
         async with httpx.AsyncClient() as client:
             response = await client.delete(
-                f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes/{index_uid}",
-                headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+                f"{base_url}/indexes/{index_uid}",
+                headers=_get_meilisearch_headers(config)
             )
             response.raise_for_status()
             return {"status": "success", "message": f"Index {index_uid} deleted"}
@@ -895,6 +906,7 @@ async def meilisearch_delete_index(index_uid: str):
 async def meilisearch_update_index(index_uid: str, request: Request):
     """Update Meilisearch index settings (searchable/filterable attributes)."""
     config = get_config()
+    base_url = _get_meilisearch_base_url(config)
     
     try:
         body = await request.json()
@@ -903,18 +915,18 @@ async def meilisearch_update_index(index_uid: str, request: Request):
             # Update searchable attributes if provided
             if "searchableAttributes" in body:
                 response = await client.patch(
-                    f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes/{index_uid}/settings/searchable-attributes",
+                    f"{base_url}/indexes/{index_uid}/settings/searchable-attributes",
                     json=body["searchableAttributes"],
-                    headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+                    headers=_get_meilisearch_headers(config)
                 )
                 response.raise_for_status()
             
             # Update filterable attributes if provided
             if "filterableAttributes" in body:
                 response = await client.patch(
-                    f"http://{config.plugins.search.host}:{config.plugins.search.port}/indexes/{index_uid}/settings/filterable-attributes",
+                    f"{base_url}/indexes/{index_uid}/settings/filterable-attributes",
                     json=body["filterableAttributes"],
-                    headers={"Authorization": f"Bearer {config.plugins.search.api_key}"}
+                    headers=_get_meilisearch_headers(config)
                 )
                 response.raise_for_status()
             
@@ -935,19 +947,44 @@ async def list_cloud_volumes():
         from indexao.cloud_indexer import setup_default_volumes
         indexer = setup_default_volumes()
         
+        # Get config for Meilisearch connection
+        config = get_config()
+        base_url = _get_meilisearch_base_url(config)
+        
+        # Access plugin config deeply nested structure (config.toml mapping)
+        # Assuming config object structure mirrors TOML
+        try:
+            api_key = config.plugins.search.meilisearch.api_key
+        except AttributeError:
+             api_key = None # Or handle default
+             
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        
         volumes_data = []
-        for name, volume in indexer.state.volumes.items():
-            volumes_data.append({
-                "name": volume.name,
-                "mount_path": volume.mount_path,
-                "index_name": volume.index_name,
-                "enabled": volume.enabled,
-                "is_mounted": indexer.is_mounted(volume),
-                "total_files": volume.total_files,
-                "indexed_files": volume.indexed_files,
-                "last_scan": volume.last_scan,
-                "progress": round(volume.indexed_files / volume.total_files * 100, 1) if volume.total_files > 0 else 0
-            })
+        
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            for name, volume in indexer.state.volumes.items():
+                
+                # Fetch real doc count from Meili to ensure UI accuracy
+                real_count = volume.indexed_files  # Default to stored value
+                try:
+                    resp = await client.get(f"{base_url}/indexes/{volume.index_name}/stats", headers=headers)
+                    if resp.status_code == 200:
+                        real_count = resp.json().get("numberOfDocuments", 0)
+                except Exception:
+                    pass  # Keep stored value if Meili is unreachable
+
+                volumes_data.append({
+                    "name": volume.name,
+                    "mount_path": volume.mount_path,
+                    "index_name": volume.index_name,
+                    "enabled": volume.enabled,
+                    "is_mounted": indexer.is_mounted(volume),
+                    "total_files": volume.total_files,
+                    "indexed_files": real_count,
+                    "last_scan": volume.last_scan,
+                    "progress": round(real_count / volume.total_files * 100, 1) if volume.total_files > 0 else 0
+                })
         
         return {"volumes": volumes_data}
     
@@ -1037,7 +1074,8 @@ async def scan_cloud_volume(volume_name: str):
         def run_scan():
             try:
                 logger.info(f"Starting background scan for {volume_name}")
-                result = indexer.index_volume_progressive(volume)
+                # Use new direct indexing method (Sprint 3 Simplification)
+                result = indexer.scan_and_index_volume(volume)
                 
                 with _scan_lock:
                     _active_scans[volume_name]["status"] = "completed"
@@ -1163,32 +1201,43 @@ async def get_realtime_monitoring():
     """Get comprehensive real-time monitoring data."""
     try:
         from indexao.database import DocumentDatabase
+        config = get_config()
         
         # Meilisearch status
         meilisearch_data = {}
-        meilisearch_url = "http://localhost:7700"
+        # Use helper to get correct URL from config
+        try:
+            meilisearch_url = _get_meilisearch_base_url(config)
+            headers = _get_meilisearch_headers(config)
+        except Exception:
+            meilisearch_url = "http://localhost:7700"
+            headers = {}
+
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                # Health check
-                health_resp = await client.get(f"{meilisearch_url}/health")
+                # Health check (usually public, but headers won't hurt)
+                health_resp = await client.get(f"{meilisearch_url}/health", headers=headers)
                 meilisearch_data["status"] = "available" if health_resp.status_code == 200 else "unavailable"
                 meilisearch_data["url"] = meilisearch_url
                 
-                # Version
-                version_resp = await client.get(f"{meilisearch_url}/version")
+                # Version (Requires auth if protected)
+                version_resp = await client.get(f"{meilisearch_url}/version", headers=headers)
                 if version_resp.status_code == 200:
                     version_data = version_resp.json()
                     meilisearch_data["version"] = version_data.get("pkgVersion", "N/A")
                 
-                # Indexes with stats
-                indexes_resp = await client.get(f"{meilisearch_url}/indexes")
+                # Indexes with stats (Requires auth if protected)
+                indexes_resp = await client.get(f"{meilisearch_url}/indexes", headers=headers)
                 indexes = []
                 total_docs = 0
                 
                 if indexes_resp.status_code == 200:
                     indexes_data = indexes_resp.json()
                     for idx in indexes_data.get("results", []):
-                        stats_resp = await client.get(f"{meilisearch_url}/indexes/{idx['uid']}/stats")
+                        stats_resp = await client.get(
+                            f"{meilisearch_url}/indexes/{idx['uid']}/stats", 
+                            headers=headers
+                        )
                         if stats_resp.status_code == 200:
                             stats = stats_resp.json()
                             idx["numberOfDocuments"] = stats.get("numberOfDocuments", 0)

@@ -300,6 +300,35 @@ class DocumentDatabase:
             
             return self._row_to_document(row)
     
+    def get_unindexed_documents(self) -> List[Dict[str, str]]:
+        """
+        Get list of documents that are completed but not marked as indexed.
+        
+        Returns:
+            List of dicts with 'doc_id' and 'file_path'.
+        """
+        with self._connection() as conn:
+            cursor = conn.cursor()
+            # Select docs where status is completed AND (indexed is 0 OR indexed is NULL)
+            cursor.execute("""
+                SELECT doc_id, metadata
+                FROM documents 
+                WHERE status = 'completed' AND (indexed = 0 OR indexed IS NULL)
+            """)
+            rows = cursor.fetchall()
+            
+            results = []
+            for row in rows:
+                try:
+                    meta = json.loads(row['metadata']) if row['metadata'] else {}
+                    if 'file_path' in meta:
+                        results.append({'doc_id': row['doc_id'], 'file_path': meta['file_path']})
+                    elif 'path' in meta: # Fallback
+                         results.append({'doc_id': row['doc_id'], 'file_path': meta['path']})
+                except:
+                    pass
+            return results
+
     def update_document(self, document: Document) -> bool:
         """
         Update an existing document.
