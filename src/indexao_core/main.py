@@ -44,6 +44,7 @@ def scan(target: Optional[Path] = typer.Argument(None, help="Specific file or fo
     count_total = 0
     
     if target:
+        target = Path(str(target)).expanduser().resolve()
         typer.echo(f"🎯 Targeting Scan: {target}")
         file_iterator = scanner.scan_path(target)
     else:
@@ -96,6 +97,7 @@ def index(target: Optional[Path] = typer.Argument(None, help="Specific file or f
     scanner = VolumeScanner(config)
     
     if target:
+        target = Path(str(target)).expanduser().resolve()
         typer.echo(f"🎯 Targeting Index: {target}")
         file_iterator = scanner.scan_sidecars_in_path(target)
     else:

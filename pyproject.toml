@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "indexao-core"
-version = "2.0.0"
+version = "2.0.1"
 description = "Indexao v2 - Core Reboot"
 readme = "README.md"
 requires-python = ">=3.10"
