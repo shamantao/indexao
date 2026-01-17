@@ -1,438 +1,129 @@
-# Indexao
+# Indexao v2 - Core Reboot
 
-**Universal multilingual search, indexing, and translation tool**
+## Philosophie : "Sidecar & Direct Connect"
 
-Indexao is a modular, user-centric tool to index arbitrary file trees and enable unified multilingual search, full translated visualization (keeping structure), and export to JSON/Markdown.
+Cette version **v2-core** marque une rupture architecturale avec la v1. L'objectif est la simplicité, la robustesse et la "vérité terrain".
 
-**Current Status**: Sprint 3 Complete ✅ - Configuration UI Overhaul & Volume Management
-**Version**: 0.4.0
-**Next**: Sprint 4 (Indexer Optimization & Fast-Track)
+### Principes Clés
+
+1.  **League of Truth (L.O.T.)** : Le système de fichiers est la source de vérité absolue. Aucune métadonnée critique n'est enfermée *uniquement* dans une DB.
+2.  **Sidecar Pattern** : Pour chaque document analysé (ex: `contrat.pdf`), un fichier miroir est créé (`contrat.md`). Il contient :
+    *   Le texte extrait.
+    *   La traduction (si nécessaire).
+    *   Les métadonnées (SHA256, date, tags, langue) en Frontmatter YAML.
+3.  **Idempotence** : L'index de recherche (Meilisearch) est *jetable*. Il peut être entièrement reconstruit à partir des fichiers Sidecar existants.
+4.  **Triage Intelligent** : Pas d'IA aveugle. Une détection de langue décide si le document mérite une traduction coûteuse ou une simple indexation.
 
 ---
 
-## 🎯 Features
+## Architecture Technique & Mises à jour (Jan 2026)
 
-### Current (Sprint 0-3 Complete)
+### 1. Le Pipeline ("The Walker")
 
-- ✅ **Web UI**: Upload, Documents, Search, Configuration logic overhaul
-- ✅ **Configuration Page**: 
-    - Full Volume Management (Add/Scan/Delete Cloud Volumes)
-    - Meilisearch Index Management (Create/Delete/Configure)
-    - Integrated Server-Side File Browser
-- ✅ **Upload Progress**: Animated 5-stage pipeline visualization
-- ✅ **Document Management**: List with statistics, pagination, filtering, modals
-- ✅ **Plugin Manager**: Dynamic adapter loading, discovery, and hot-swap
-- ✅ **REST API**: Full config management endpoints (`/api/config`, `/api/cloud/volumes`, `/api/meilisearch/indexes`)
-- ✅ **Mock Adapters**: OCR, Translation, Search (for development/testing)
-- ✅ **Database**: SQLite with document model and metadata storage
-- ✅ **API Management**: Start/stop/reload script with health checks
-- ✅ **Configuration**: TOML-based plugin configuration with path variables
+Le processus de traitement est linéaire pour chaque fichier :
 
-### Planned (Sprint 3)
+1.  **Détection** : Scan des volumes configurés ou **scan ciblé** sur un fichier/dossier spécifique.
+2.  **Filtrage** : Exclusion via `config.toml` (patterns) et `.gitignore`.
+3.  **Fingerprinting** : Calcul du SHA256. Vérification de l'existence du Sidecar.
+4.  **Extraction (ETL)** :
+    *   **PDF/Images** : OCR via **Apple Vision** (Natif macOS, via `pyobjc`).
+5.  **Analyse & Traduction** :
+    *   **Détection Langue** : Ratio de caractères CJK.
+    *   **Moteur LLM** : **Google Gemini** (Round-Robin Multi-Keys).
+       *   Utilisation de 4 clés API en rotation pour contourner les quotas.
+       *   Modèle : `gemini-flash-latest`.
+6.  **Génération Sidecar** : Format Markdown avec séparation claire :
+    *   Frontmatter (YAML)
+    *   `## 🇫🇷 Traduction (IA)`
+    *   `## 📄 Texte Original (Extrait)`
+7.  **Indexation Meilisearch** :
+    *   Indexation distincte des champs `content` (original) et `translation` (traduit) pour une recherche précise.
 
-- ⏳ **Tesseract OCR**: Real text extraction (100+ languages)
-- ⏳ **Argos Translate**: Offline neural translation
-- ⏳ **Meilisearch**: Production search engine with typo-tolerance
-- ⏳ **MVP**: Testable by humans (end of Sprint 3, ~2025-11-14)
+### 2. Interface Utilisateur (UI)
 
-### Core Capabilities (Target)
+*   **Technologie** : Streamlit
+*   **Design** : Style "Finder" macOS / Explorateur de fichiers.
+*   **Fonctionnalités** :
+    *   Visualisation sous forme de cartes (File Cards) avec icônes.
+    *   Boutons distincts pour ouvrir le fichier original ou la traduction.
+    *   Affichage des extraits pertinents (Hit highlights) en jaune.
 
-- **Universal Indexing**: Recursively scans local, network, or cloud file trees
-- **Multilingual Search**: Search across languages (`ballon` = `ball` = `球`)
-- **Smart Translation**: View files translated while preserving structure
-- **Multiple Formats**: Text, images (OCR), PDFs, Office documents
-- **Export Ready**: JSON and Markdown export for AI/analysis tools
+### 3. Stack
 
-### Plugin Architecture
+*   **Langage** : Python 3.12+ (managed by `venv`)
+*   **CLI** : Typer
+*   **OCR** : pyobjc-framework-Vision (macOS Native)
+*   **Search** : Meilisearch (via client Python)
+*   **LLM** : Google Gemini API (Multi-Key Load Balancing)
+*   **Frontend** : Streamlit (Custom CSS)
 
-All components are **swappable plugins**:
+---
 
-- **OCR Engines**: Tesseract, Chandra-OCR, Google Cloud Vision, etc.
-- **Translators**: Argostranslate (local), Google Translate API, DeepL, etc.
-- **Search Backends**: Meilisearch, Elasticsearch, Tantivy, etc.
-- **Storage**: SQLite, PostgreSQL, file-based index
+## Utilisation (CLI)
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- pip and virtualenv
-- (Optional) Nginx for reverse proxy
-
-### Installation
+Le script `indexao.sh` est le point d'entrée principal.
 
 ```bash
-# Clone repository
-git clone https://github.com/shamantao/indexao.git
-cd indexao
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install with web UI
-pip install -e ".[webui]"
+./indexao.sh [COMMAND] [ARGS]
 ```
 
-### Start the Application
+### Tableau d'Aide
 
+| Commande | Description | Argument Clé |
+| :--- | :--- | :--- |
+| `start` | Démarre l'interface Web (Streamlit) | - |
+| `stop` | Arrête l'interface Web | - |
+| `restart` | Redémarre l'interface Web | - |
+| `scan` | Scan OCR + Traduction | `[path]` (Optionnel) |
+| `index` | Indexation Meilisearch | `[path]` (Optionnel) |
+| `status` | Vérifie l'état du service | - |
+
+### Exemples d'Utilisation
+
+**1. Scanner tous les volumes configurés :**
 ```bash
-# Start API server
-./ci/indexao-api.sh start
-
-# Check status
-./ci/indexao-api.sh status
-
-# View logs
-./ci/indexao-api.sh logs
-
-# Stop server
-./ci/indexao-api.sh stop
+./indexao.sh scan
 ```
 
-### Access Web Interface
-
+**2. Scanner un dossier ou un fichier spécifique (Ad-hoc) :**
 ```bash
-# Direct access (default)
-open http://127.0.0.1:8000
-
-# Or with Nginx (if configured)
-open http://indexao.localhost
+./indexao.sh scan /Users/phil/Documents/Projet_X --force
 ```
 
-### Web UI Features
-
-**Upload Page** (`/`)
-
-- Drag-and-drop file upload
-- Multi-file support
-- Real-time 5-stage progress:
-  1. Upload
-  2. Detection (MIME type, language)
-  3. Extraction (OCR)
-  4. Translation
-  5. Indexing (search engine)
-
-**Documents Page** (`/documents`)
-
-- Statistics dashboard (total, completed, failed, success rate)
-- Paginated document list (20 items/page)
-- Status filtering (all, completed, failed, pending)
-- Color-coded badges
-- Document detail modal
-- Auto-refresh (30s)
-
-**Search Page** (`/search`)
-
-- Full-text search input
-- Filter by: content, translations, filenames
-- Status filter
-- Query highlighting in results
-- Example queries for quick searches
-
-### Configuration
-
+**3. Indexer tout :**
 ```bash
-# Copy example config
-cp config.example.toml config.toml
-
-# Edit paths and plugins
-nano config.toml
+./indexao.sh index --clean
 ```
 
-Example `config.toml`:
+**4. Indexer un fichier spécifique :**
+*Détecte automatiquement le fichier .md associé au fichier source.*
+```bash
+./indexao.sh index /Users/phil/Documents/Contrat_Chinois.pdf
+```
+
+---
+
+## Configuration (`config.toml`)
 
 ```toml
-[paths]
-input_dir = "input"
-output_dir = "output"
-logs_dir = "logs"
-db_path = "data/indexao.db"
+[core]
+cjk_threshold = 0.05 
 
-[logging]
-level = "INFO"
-console_enabled = true
-file_enabled = true
+[meilisearch]
+url = "http://localhost:7700"
+api_key = "masterKey"
 
-[plugins.ocr]
-adapter = "mock"  # Will be "tesseract" in Sprint 3
-# Available (future): tesseract, chandra, google_vision
+[gemini]
+api_keys = [
+    "KEY_1",
+    "KEY_2",
+    "KEY_3",
+    "KEY_4"
+]
+model_name = "gemini-flash-latest"
 
-[plugins.translator]
-adapter = "mock"  # Will be "argos" in Sprint 3
-languages = ["en", "fr", "es", "de"]
-# Available (future): argostranslate, google_translate, deepl
-
-[plugins.search]
-adapter = "mock"  # Will be "meilisearch" in Sprint 3
-# Available (future): meilisearch, tantivy, elasticsearch
+[[volumes]]
+path = "/Users/phil/Downloads/_Volumes"
+scan_images = true
+exclude = ["**/.DS_Store", "**/*.tmp"]
 ```
-
-## 📖 API Usage
-
-### Plugin Management (Sprint 2)
-
-```bash
-# List all available plugins
-curl http://127.0.0.1:8000/api/plugins
-
-# List plugins by type
-curl http://127.0.0.1:8000/api/plugins?adapter_type=ocr
-
-# Get active adapters
-curl http://127.0.0.1:8000/api/plugins/active
-
-# Get active adapter for specific type
-curl http://127.0.0.1:8000/api/plugins/ocr/active
-
-# Switch adapter (hot-swap without restart)
-curl -X POST http://127.0.0.1:8000/api/plugins/switch \
-  -H "Content-Type: application/json" \
-  -d '{"adapter_type": "ocr", "adapter_name": "tesseract"}'
-
-# Get switch history
-curl http://127.0.0.1:8000/api/plugins/history
-```
-
-### Upload File
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/upload \
-  -F "file=@document.pdf"
-```
-
-Response:
-
-```json
-{
-  "document_id": "550e8400-e29b-41d4-a716-446655440000",
-  "filename": "document.pdf",
-  "mime_type": "application/pdf",
-  "size": 245678
-}
-```
-
-### Process Document
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/process \
-  -H "Content-Type: application/json" \
-  -d '{"document_id": "550e8400-e29b-41d4-a716-446655440000"}'
-```
-
-### List Documents
-
-```bash
-# All documents
-curl http://127.0.0.1:8000/api/documents
-
-# Filter by status
-curl http://127.0.0.1:8000/api/documents?status=completed
-
-# With limit
-curl http://127.0.0.1:8000/api/documents?limit=10
-```
-
-### Get Document Details
-
-```bash
-curl http://127.0.0.1:8000/api/documents/550e8400-e29b-41d4-a716-446655440000
-```
-
-### Get Statistics
-
-```bash
-curl http://127.0.0.1:8000/api/stats
-```
-
-Response:
-
-```json
-{
-  "total": 10,
-  "completed": 8,
-  "failed": 1,
-  "pending": 1,
-  "success_rate": 80.0
-}
-```
-
-## 🛠️ Development
-
-### Reload After Code Changes
-
-```bash
-# Reload with cache cleanup
-./ci/indexao-api.sh reload
-```
-
-### Run Tests
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=src/indexao
-
-# Run specific test file
-pytest tests/test_database.py
-```
-
-### Code Quality
-
-```bash
-# Lint code
-ruff check src/
-
-# Format code
-ruff format src/
-
-# Type checking
-mypy src/
-```
-
-# Search in metadata
-
-indexao search "author:john" --in metadata
-
-````
-
-### View & Export
-
-```bash
-# View translated file
-indexao view /path/to/file.txt --lang fr
-
-# Export to JSON
-indexao export /path/to/file.txt --format json --lang fr,en
-
-# Export to Markdown
-indexao export /path/to/image.jpg --format markdown --lang zh-TW
-````
-
-## 🏗️ Architecture
-
-Indexao uses a **hybrid Python/Rust architecture** (Polars Pattern):
-
-- **Rust Core**: High-performance file scanning, indexing, and I/O operations
-- **Python Layer**: Plugin ecosystem, ML models, and user interface
-- **PyO3 Bridge**: Zero-copy data exchange via Apache Arrow
-
-Benefits:
-
-- ⚡ **Fast**: Rust performance for I/O-bound tasks
-- 🐍 **Flexible**: Python ecosystem for ML/AI plugins
-- 📦 **Portable**: Single binary distribution (15 MB)
-- 🔌 **Modular**: Swap any component without code changes
-
-For detailed architecture, see [`arch-tech.md`](./mkdoc/arch-tech.md).
-
-## 🧪 Testing
-
-### Run Tests
-
-```bash
-# Run all unit tests
-python tests/test_plugin_discovery_standalone.py
-python tests/test_load_adapter_standalone.py
-
-# Run with pytest (if installed)
-pytest tests/ -v
-```
-
-### Test Plugin Switcher UI
-
-**Quick Test Procedure** (Sprint 2 Feature):
-
-1. **Start the server**:
-
-   ```bash
-   ./ci/indexao-api.sh start
-   # Or manually: uvicorn indexao.webui:app --reload
-   ```
-
-2. **Open the Config page**:
-
-   - Navigate to: http://127.0.0.1:8000/config
-   - Or via Nginx: http://indexao.localhost/config
-
-3. **Test Plugin Switcher**:
-
-   - Scroll to "Plugin Switcher (Hot-Swap)" section
-   - See 3 dropdowns: OCR, Translator, Search
-   - Each dropdown shows available plugins (currently: mock)
-   - Status shows current active adapter
-   - Click "Switch OCR" button to test hot-swap
-   - Success message appears, page reloads
-
-4. **Test API directly**:
-
-   ```bash
-   # List plugins
-   curl http://127.0.0.1:8000/api/plugins
-
-   # Check active adapters
-   curl http://127.0.0.1:8000/api/plugins/active
-
-   # Switch adapter
-   curl -X POST http://127.0.0.1:8000/api/plugins/switch \
-     -H "Content-Type: application/json" \
-     -d '{"adapter_type": "ocr", "adapter_name": "mock"}'
-   ```
-
-5. **Expected behavior**:
-   - ✅ Plugins load without errors
-   - ✅ Dropdowns populate with available adapters
-   - ✅ Status badges show active state
-   - ✅ Switching updates status in real-time
-   - ✅ No server restart needed
-
-## 📚 Documentation
-
-- [Technical Architecture](./mkdoc/arch-tech.md) - Design decisions, plugin APIs, data models
-- [Sprint Backlog](./mkdoc/_backlog.md) - Development tracking
-- [Changelog](./CHANGELOG.md) - Version history and updates
-
-## 🤝 Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
-**Key principles**:
-
-- Files ≤ 300-400 lines (split into modules)
-- English comments and docstrings
-- User-centric tests (end-to-end scenarios)
-- Plugin-first architecture (composition over inheritance)
-
-## 📋 Requirements
-
-**Python**: 3.10+
-**Rust**: 1.70+ (optional, for hybrid build)
-
-**Dependencies**:
-
-- Core: `click`, `pyyaml`, `python-magic`
-- Search: `meilisearch` (or chosen backend)
-- Optional: `maturin` (hybrid build), `polars` (data processing)
-
-## 📄 License
-
-MIT License - See [LICENSE](./LICENSE)
-
-## 🙏 Credits
-
-Built with best-of-breed open source tools:
-
-- [Polars](https://pola.rs/) - Hybrid Rust/Python pattern
-- [Meilisearch](https://www.meilisearch.com/) - Search engine
-- [Tesseract](https://github.com/tesseract-ocr/tesseract) - OCR
-- [Argostranslate](https://github.com/argosopentech/argos-translate) - Translation
-- [PyO3](https://pyo3.rs/) - Rust ↔ Python bridge
-
----
-
-**Status**: 🚧 Active Development - Sprint 0 (Architecture Setup)
-
-Last updated: 2025-11-05

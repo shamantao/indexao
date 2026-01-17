@@ -1,81 +1,24 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
-name = "indexao"
-dynamic = ["version"]
-description = "Hybrid Rust-Python document processing pipeline (Apache Arrow + Polars)"
+name = "indexao-core"
+version = "2.0.0"
+description = "Indexao v2 - Core Reboot"
 readme = "README.md"
-requires-python = ">=3.11"
-license = {text = "MIT"}
-authors = [
-    {name = "Philippe", email = "phil@example.com"}
-]
-keywords = ["document-processing", "ocr", "translation", "search", "rust", "python"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Rust",
-]
-
+requires-python = ">=3.10"
 dependencies = [
-    "tomli>=2.0.0; python_version<'3.11'",
+    "typer>=0.9.0",
+    "toml>=0.10.2",
+    "pydantic>=2.0.0",
+    "pyobjc-framework-Vision>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
+    "watchfiles>=0.21.0",
+    "meilisearch>=0.28.0",
+    "streamlit>=1.30.0"
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
-]
-webui = [
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.24.0",
-    "jinja2>=3.1.0",
-    "python-multipart>=0.0.6",
-]
-ocr = [
-    "pytesseract>=0.3.10",
-    "pdf2image>=1.16.3",
-    "Pillow>=10.0.0",
-]
-
-[project.urls]
-Homepage = "https://github.com/example/indexao"
-Documentation = "https://indexao.readthedocs.io"
-Repository = "https://github.com/example/indexao.git"
-Changelog = "https://github.com/example/indexao/blob/main/CHANGELOG.md"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.dynamic]
-version = {file = "VERSION"}
-
-[tool.setuptools.package-data]
-indexao = ["py.typed"]
-
-[tool.pytest.ini_options]
-minversion = "7.0"
-addopts = "-ra -q --strict-markers"
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-include = '\.pyi?$'
-
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]  # Line too long (handled by black)
+[project.scripts]
+indexao = "indexao_core.main:app"
