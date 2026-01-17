@@ -67,7 +67,10 @@ def scan(target: Optional[Path] = typer.Argument(None, help="Specific file or fo
         status = result["status"]
         
         if status == "processed":
-            typer.echo(f" ✅")
+            if result.get("translation_failed", False):
+                typer.echo(f" ⚠️ (No Translation)")
+            else:
+                typer.echo(f" ✅")
             count_processed += 1
         elif status == "skipped":
             typer.echo(f" ⏭️")

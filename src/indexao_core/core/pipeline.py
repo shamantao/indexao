@@ -167,6 +167,7 @@ class Pipeline:
         lang_code = "zh" if is_chinese else "en/fr"
         
         translation = None
+        translation_failed = False
         if is_chinese:
             # Automatic Translation via Gemini
             try:
@@ -183,9 +184,11 @@ class Pipeline:
                     print(" OK")
                 else:
                     translation = "> ⚠️ Traduction échouée (API Error)\n"
+                    translation_failed = True
                     print(" Failed")
             except Exception as e:
                 translation = f"> ⚠️ Erreur traduction: {str(e)}\n"
+                translation_failed = True
                 print(f" Error: {e}")
         
         # 4. Persistence
@@ -207,5 +210,6 @@ class Pipeline:
             "status": "processed", 
             "path": str(md_path), 
             "language": lang_code,
-            "chinese_detected": is_chinese
+            "chinese_detected": is_chinese,
+            "translation_failed": translation_failed
         }

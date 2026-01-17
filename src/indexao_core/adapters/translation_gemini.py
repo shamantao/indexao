@@ -150,8 +150,9 @@ class GeminiAdapter:
                 key_state.last_request_time = time.time()
                 key_state.request_count_today += 1
                 
-                # Increased timeout for Free Tier stability
-                response = requests.post(request_url, headers=headers, json=payload, timeout=60)
+                # Increased timeout for Free Tier stability and long documents
+                # 3193s for 41 files = ~78s/file. 60s is too tight for large contexts.
+                response = requests.post(request_url, headers=headers, json=payload, timeout=120)
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -168,6 +169,18 @@ class GeminiAdapter:
                     # Mark this key as cold for 60s
                     key_state.cooldown_until = time.time() + 60
                     continue
+
+                elif response.status_code == 400:
+                    # Check for API Key issues to allow failover
+                    err_text = response.text.lower()
+                    if "api_key" in err_text or "api key" in err_text or "expired" in err_text or "invalid" in err_text:
+                        print(f"⚠️ Key ...{key_state.key[-4:]} is INVALID/EXPIRED. Switching key...")
+                        # Disable this key for the session
+                        key_state.daily_limit = 0 
+                        continue
+                    else:
+                        print(f"❌ API Error ({response.status_code}): {response.text}")
+                        return None
                 
                 else:
                     print(f"❌ API Error ({response.status_code}): {response.text}")
