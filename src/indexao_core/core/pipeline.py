@@ -121,12 +121,29 @@ class Pipeline:
         # Use appended extension to avoid collisions (e.g. file.json vs file.pdf)
         md_path = path.with_name(path.name + ".md")
         
-        # Check idempotence
+        # Check idempotence & Resume Logic
+        existing_text_content = None
+
         if md_path.exists() and not force:
-            # OPTIONAL: Read existing SHA to confirm it matches current file
-            # For speed, usually we trust mtime or just skip.
-            # Here we skip if exists.
-            return {"status": "skipped", "message": "Sidecar exists", "path": str(md_path)}
+            try:
+                # Read content to check for failure markers
+                with open(md_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                failure_markers = [
+                    "> ⚠️ Traduction échouée", 
+                    "> ⚠️ Erreur traduction:"
+                ]
+                
+                if any(marker in content for marker in failure_markers):
+                    # Try to reuse existing text content to skip OCR
+                    parsed = parse_markdown(md_path)
+                    if parsed.get("content"):
+                        existing_text_content = parsed["content"]
+                else:
+                    return {"status": "skipped", "message": "Sidecar exists", "path": str(md_path)}
+            except Exception:
+                pass
 
         # 2. Extraction
         try:
@@ -134,7 +151,11 @@ class Pipeline:
             text = ""
             is_text_source = False
             
-            if suffix in ['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.heic', '.bmp']:
+            if existing_text_content:
+                text = existing_text_content
+                if suffix in ['.txt', '.md', '.py', '.xml', '.html']:
+                    is_text_source = True
+            elif suffix in ['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.heic', '.bmp']:
                 text = self.ocr.extract_text(str(path))
             elif suffix in ['.txt', '.md', '.py', '.xml', '.html']:
                 # Text files: just read them

@@ -24,7 +24,10 @@ Le processus de traitement est linéaire pour chaque fichier :
 
 1.  **Détection** : Scan des volumes configurés ou **scan ciblé** sur un fichier/dossier spécifique.
 2.  **Filtrage** : Exclusion via `config.toml` (patterns) et `.gitignore`.
-3.  **Fingerprinting** : Calcul du SHA256. Vérification de l'existence du Sidecar.
+3.  **Fingerprinting & Reprise Intelligente** : 
+    *   Calcul du SHA256.
+    *   Vérification de l'existence du Sidecar.
+    *   **Auto-Healing** : Si un sidecar existe mais contient une erreur de traduction, le processus reprend automatiquement. Il réutilise le texte déjà extrait (OCR) pour ne relancer que la traduction, économisant ainsi du temps de calcul.
 4.  **Extraction (ETL)** :
     *   **PDF/Images** : OCR via **Apple Vision** (Natif macOS, via `pyobjc`).
 5.  **Analyse & Traduction** :

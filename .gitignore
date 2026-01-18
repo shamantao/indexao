@@ -63,9 +63,7 @@ Thumbs.db
 config.toml
 !config.example.toml
 
-# mkdoc development tracking (not for Git)
-mkdoc/
-docs/
+# docs/ (Removed to allow documentation tracking)
 
 # Temporary files
 *.tmp

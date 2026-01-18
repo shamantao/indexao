@@ -79,7 +79,7 @@ scan() {
 
 doctor() {
     echo -e "${GREEN}🩺 Starting Indexao Doctor...${NC}"
-    "$PYTHON_CMD" maintenance.py "$@"
+    "$PYTHON_CMD" support/maintenance.py "$@"
 }
 
 index() {
