@@ -31,6 +31,7 @@ Le processus de traitement est linéaire pour chaque fichier :
     *   **Détection Langue** : Ratio de caractères CJK.
     *   **Moteur LLM** : **Google Gemini** (Round-Robin Multi-Keys).
        *   Utilisation de 4 clés API en rotation pour contourner les quotas.
+       *   Gestion intelligente des erreurs 429 (Distinction entre Rate Limit temporaire et Quota Journalier épuisé).
        *   Modèle : `gemini-flash-latest`.
 6.  **Génération Sidecar** : Format Markdown avec séparation claire :
     *   Frontmatter (YAML)
@@ -113,14 +114,16 @@ cjk_threshold = 0.05
 url = "http://localhost:7700"
 api_key = "masterKey"
 
-[gemini]
+[llm]
 api_keys = [
     "KEY_1",
     "KEY_2",
     "KEY_3",
     "KEY_4"
 ]
-model_name = "gemini-flash-latest"
+model = "gemini-flash-latest"
+rpm = 15
+daily_limit = 1500
 
 [[volumes]]
 path = "/Users/phil/Downloads/_Volumes"

@@ -12,7 +12,8 @@ class KeyState:
         self.last_request_time = 0
         self.request_count_today = 0
         # Min interval per key to safety buffer (slightly more than strict math to avoid jitter)
-        self.min_interval = (60.0 / rpm) + 0.2 if rpm > 0 else 0
+        # Increase safety buffer to avoid burst limits
+        self.min_interval = (60.0 / rpm) * 1.1 if rpm > 0 else 0
         self.cooldown_until = 0
 
     def time_until_ready(self) -> float:
@@ -72,6 +73,10 @@ class GeminiAdapter:
             # Skip exhausted keys
             if key_state.request_count_today >= key_state.daily_limit:
                 continue
+
+            # Skip explicitly cooled down keys (429) unless all keys are cooling down
+            if key_state.cooldown_until > time.time():
+                continue
                 
             available_keys_count += 1
 
@@ -88,13 +93,31 @@ class GeminiAdapter:
                 best_key_idx = idx
 
         # No key ready immediately. 
-        # If we found a candidate (waiting list), pick the fastest one
+        
+        # Scenario A: We found a valid key that is just throttled by RPM
         if best_key_idx != -1:
             self.current_key_idx = (best_key_idx + 1) % len(self.keys)
             return self.keys[best_key_idx], min_wait
             
-        if available_keys_count == 0:
-            return None, 0 # All keys daily limit hit
+        # Scenario B: No valid key found. Check if any are in temporary cooldown (429)
+        # and pick the one recovering soonest.
+        min_cooldown = float('inf')
+        cooldown_key_idx = -1
+        
+        for i, k in enumerate(self.keys):
+            if k.request_count_today < k.daily_limit and k.cooldown_until > time.time():
+                wait = k.cooldown_until - time.time()
+                if wait < min_cooldown:
+                    min_cooldown = wait
+                    cooldown_key_idx = i
+        
+        if cooldown_key_idx != -1:
+             self.current_key_idx = (cooldown_key_idx + 1) % len(self.keys)
+             # Return this key but tell the caller to wait the full cooldown
+             return self.keys[cooldown_key_idx], min_cooldown
+
+        # Scenario C: Everyone is exhausted (daily limit)
+        return None, 0
 
         # Should not reach here typically
         return None, 60.0
@@ -108,9 +131,16 @@ class GeminiAdapter:
 
         # Robust prompt
         prompt = f"""
-        Translate the following text into French.
-        Output ONLY the translation, nothing else.
-        If the text is technical (legal, policies), keep the professional tone.
+        Role: Expert Translator & Document Formatter.
+        Task: Translate the following text into French.
+        
+        CRITICAL INSTRUCTIONS:
+        1. Keep the exact visual structure of the original document using Markdown.
+        2. Use '# Title' for main headers and '## Subtitle' for sections.
+        3. Use '**Bold**' for keys/labels (e.g. '**Name**:', '**Date**:').
+        4. Use lists (- item) for enumerations.
+        5. Insert '---' markdown separators between distinct sections to improve readability.
+        6. Output ONLY the translated Markdown. No intro/outro text.
         
         Text to translate:
         {text}
@@ -165,9 +195,14 @@ class GeminiAdapter:
                         return None
                 
                 elif response.status_code == 429:
-                    print(f"⚠️ Key ...{key_state.key[-4:]} hit 429 (Quota). Switching key...")
-                    # Mark this key as cold for 60s
-                    key_state.cooldown_until = time.time() + 60
+                    err_text = response.text.lower()
+                    if "quota" in err_text or "exhausted" in err_text:
+                        print(f"⛔ Key ...{key_state.key[-4:]} hit DAILY QUOTA. Disabling for session.")
+                        key_state.request_count_today = key_state.daily_limit + 1
+                    else:
+                        print(f"⚠️ Key ...{key_state.key[-4:]} hit 429 (Rate Limit). Cooling down 60s...")
+                        # Mark this key as cold for 60s
+                        key_state.cooldown_until = time.time() + 60
                     continue
 
                 elif response.status_code == 400:

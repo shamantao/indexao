@@ -77,6 +77,11 @@ scan() {
     "$PYTHON_CMD" -m indexao_core.main scan "$@"
 }
 
+doctor() {
+    echo -e "${GREEN}🩺 Starting Indexao Doctor...${NC}"
+    "$PYTHON_CMD" maintenance.py "$@"
+}
+
 index() {
     # Default behavior: Force clean to ensure index matches disk
     # Override with --no-clean if needed manually but safer for user
@@ -107,9 +112,13 @@ case "$1" in
         shift
         index "$@"
         ;;
+    doctor)
+        shift
+        doctor "$@"
+        ;;
     *)
         echo "Indexao Manager v2.0"
-        echo "Usage: $0 {start|stop|restart|status|scan|index}"
+        echo "Usage: $0 {start|stop|restart|status|scan|index|doctor}"
         echo ""
         echo "Commands:"
         echo "  start   : Start the Web Dashboard (Streamlit)"
@@ -117,6 +126,7 @@ case "$1" in
         echo "  restart : Restart the Web Dashboard"
         echo "  scan    : Scan volumes and generate sidecars (OCR)"
         echo "  index   : Index sidecars into Meilisearch"
+        echo "  doctor  : Run maintenance checks (Health, Keys, Mounts)"
         echo "  status  : Check dashboard status"
         exit 1
         ;;

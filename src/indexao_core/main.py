@@ -44,7 +44,14 @@ def scan(target: Optional[Path] = typer.Argument(None, help="Specific file or fo
     count_total = 0
     
     if target:
-        target = Path(str(target)).expanduser().resolve()
+        # User Friendly Fix: Remove shell escapes if user pasted a path in quotes with backslashes
+        raw_target = str(target)
+        if "\\" in raw_target:
+            clean_target = raw_target.replace("\\ ", " ").replace("\\'", "'").replace('\\"', '"').replace("\\(", "(").replace("\\)", ")")
+            target = Path(clean_target).expanduser().resolve()
+        else:
+            target = Path(raw_target).expanduser().resolve()
+            
         typer.echo(f"🎯 Targeting Scan: {target}")
         file_iterator = scanner.scan_path(target)
     else:
